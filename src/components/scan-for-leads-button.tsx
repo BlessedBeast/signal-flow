@@ -8,10 +8,20 @@ import { getAuthHeaders } from "@/lib/api-auth";
 import { useSignalFlow } from "@/lib/signalflow-store";
 import { cn } from "@/lib/utils";
 
+/** Must match `src/app/api/miner/hunt/route.ts` */
+const MINER_HUNT_API_PATH = "/api/miner/hunt";
+
 type ScanForLeadsButtonProps = {
   size?: "default" | "sm" | "lg";
   className?: string;
   fullWidth?: boolean;
+};
+
+type HuntApiResponse = {
+  ok?: boolean;
+  inserted?: number;
+  error?: string;
+  step?: string | null;
 };
 
 export function ScanForLeadsButton({
@@ -30,24 +40,48 @@ export function ScanForLeadsButton({
         return;
       }
 
-      const res = await fetch("/api/miner/hunt", {
-        method: "POST",
-        headers,
-      });
+      let res: Response;
+      try {
+        res = await fetch(MINER_HUNT_API_PATH, {
+          method: "POST",
+          headers: {
+            ...headers,
+            Accept: "application/json",
+          },
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+      } catch (networkErr) {
+        const message =
+          networkErr instanceof Error
+            ? networkErr.message
+            : "Network request failed";
+        toast.error(
+          `Could not reach the miner API at ${MINER_HUNT_API_PATH}. Is the dev server running? (${message})`
+        );
+        return;
+      }
 
-      const json = (await res.json()) as {
-        ok?: boolean;
-        inserted?: number;
-        error?: string;
-      };
+      let json: HuntApiResponse;
+      try {
+        json = (await res.json()) as HuntApiResponse;
+      } catch {
+        toast.error(
+          `Miner API returned a non-JSON response (${res.status}). Check server logs.`
+        );
+        return;
+      }
 
       if (res.status === 409) {
+        toast.message("Miner already running", {
+          description: json.error ?? "A hunt is already in progress.",
+        });
         await refreshProfile();
         return;
       }
 
       if (!res.ok || !json.ok) {
-        toast.error(json.error ?? "Lead scan failed");
+        toast.error(json.error ?? `Lead scan failed (${res.status})`);
         await refreshProfile();
         return;
       }
@@ -80,7 +114,8 @@ export function ScanForLeadsButton({
       className={cn(
         "gap-2",
         fullWidth && "w-full",
-        mining && "glass-soft border-amber-500/20 bg-muted/40 text-muted-foreground shadow-none hover:bg-muted/40",
+        mining &&
+          "glass-soft border-amber-500/20 bg-muted/40 text-muted-foreground shadow-none hover:bg-muted/40",
         className
       )}
       disabled={mining}
@@ -98,7 +133,10 @@ export function ScanForLeadsButton({
         </>
       ) : (
         <>
-          <Radar className={cn("shrink-0", size === "sm" ? "size-3.5" : "size-4")} aria-hidden />
+          <Radar
+            className={cn("shrink-0", size === "sm" ? "size-3.5" : "size-4")}
+            aria-hidden
+          />
           Scan for Leads
         </>
       )}

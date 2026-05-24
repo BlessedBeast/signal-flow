@@ -47,6 +47,14 @@ export function resolveCommunityKey(
     return { communityKey: "global_x", platform: "x" };
   }
 
+  if (resolved === "indiehackers") {
+    return { communityKey: "global_indiehackers", platform: "indiehackers" };
+  }
+
+  if (resolved === "producthunt") {
+    return { communityKey: "global_producthunt", platform: "producthunt" };
+  }
+
   return { communityKey: "global_unknown", platform: resolved };
 }
 
@@ -70,6 +78,18 @@ export function getDefaultComplianceFlags(platform: Platform): string[] {
         "Stay highly concise — fit tight character constraints.",
         "Use punchy, fragmented conversational hooks.",
         "Avoid corporate tone; sound like a real person on the timeline.",
+      ];
+    case "indiehackers":
+      return [
+        "Write as a builder sharing honest lessons, not a vendor pitching.",
+        "Avoid hype and generic startup platitudes.",
+        "Keep tone peer-to-peer with other founders.",
+      ];
+    case "producthunt":
+      return [
+        "Sound like a maker commenting on a launch thread, not marketing.",
+        "No hard sells or feature dumps in replies.",
+        "Be concise and specific about the problem space.",
       ];
     default:
       return [
@@ -113,6 +133,14 @@ function buildJinaScrapeTarget(communityKey: string): string | null {
     return "https://help.x.com/en/rules-and-policies/x-rules";
   }
 
+  if (communityKey === "global_indiehackers") {
+    return "https://www.indiehackers.com/";
+  }
+
+  if (communityKey === "global_producthunt") {
+    return "https://www.producthunt.com/";
+  }
+
   return null;
 }
 
@@ -154,6 +182,24 @@ const extractedFlagsSchema = z.union([
   z.object({ flags: z.array(z.string()) }),
   z.object({ compliance_flags: z.array(z.string()) }),
 ]);
+
+function sanitizeOpenAiJsonResponse(rawResponse: string): string {
+  let cleanJsonString = rawResponse.trim();
+
+  if (cleanJsonString.startsWith("```json")) {
+    cleanJsonString = cleanJsonString
+      .replace(/^```json/, "")
+      .replace(/```$/, "")
+      .trim();
+  } else if (cleanJsonString.startsWith("```")) {
+    cleanJsonString = cleanJsonString
+      .replace(/^```/, "")
+      .replace(/```$/, "")
+      .trim();
+  }
+
+  return cleanJsonString;
+}
 
 async function extractComplianceFlagsWithOpenAI(
   markdown: string,
@@ -203,9 +249,11 @@ async function extractComplianceFlagsWithOpenAI(
     throw new Error("OpenAI returned empty extraction");
   }
 
+  const cleanJsonString = sanitizeOpenAiJsonResponse(content);
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content) as unknown;
+    parsed = JSON.parse(cleanJsonString) as unknown;
   } catch {
     throw new Error("OpenAI returned invalid extraction JSON");
   }

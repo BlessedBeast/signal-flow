@@ -1,4 +1,19 @@
-export type Platform = "reddit" | "x" | "hackernews";
+export const PLATFORMS = [
+  "reddit",
+  "x",
+  "hackernews",
+  "indiehackers",
+  "producthunt",
+] as const;
+
+export type Platform = (typeof PLATFORMS)[number];
+
+export function parsePlatform(raw: string | null | undefined): Platform {
+  if (raw && PLATFORMS.includes(raw as Platform)) {
+    return raw as Platform;
+  }
+  return "reddit";
+}
 export type IntentTier = "HOT" | "WARM" | "COLD";
 export type LeadStatus = "new" | "drafted" | "replied" | "archived";
 

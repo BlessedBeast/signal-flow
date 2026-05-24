@@ -2,7 +2,13 @@ import { z } from "zod";
 
 import type { Platform, ProductDNA } from "@/lib/signalflow-types";
 
-const PLATFORMS = ["reddit", "x", "hackernews"] as const;
+const PLATFORMS = [
+  "reddit",
+  "x",
+  "hackernews",
+  "indiehackers",
+  "producthunt",
+] as const;
 
 function coerceStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -21,6 +27,12 @@ function coercePlatforms(value: unknown): Platform[] {
     hackernews: "hackernews",
     hn: "hackernews",
     "hacker news": "hackernews",
+    indiehackers: "indiehackers",
+    ih: "indiehackers",
+    "indie hackers": "indiehackers",
+    producthunt: "producthunt",
+    ph: "producthunt",
+    "product hunt": "producthunt",
   };
   const out = new Set<Platform>();
   for (const item of raw) {
@@ -28,7 +40,7 @@ function coercePlatforms(value: unknown): Platform[] {
     if (platform) out.add(platform);
   }
   if (out.size === 0) {
-    return ["reddit", "x", "hackernews"];
+    return ["reddit", "hackernews", "indiehackers", "producthunt"];
   }
   return [...out];
 }

@@ -4,9 +4,14 @@ import { resolveAuthenticatedUserId } from "@/lib/onboard-pipeline";
 import type { Platform, ProductDNA } from "@/lib/signalflow-types";
 import { supabaseServer } from "@/lib/supabase-server";
 
+import {
+  fetchAllSerperCandidates,
+  snippetContainsStaleYear,
+  type SerperCandidate,
+} from "@/lib/miner/search-pipeline";
+
 const MAX_LEADS_PER_RUN = 15;
 const STALE_LOCK_MS = 5 * 60 * 1000;
-const SERPER_RESULTS_PER_QUERY = 10;
 const OPENAI_MODEL = "gpt-4o-mini";
 
 const productDnaSchema = z.object({
@@ -42,13 +47,7 @@ export type HuntResult = {
   stoppedEarly: boolean;
 };
 
-export type SerperCandidate = {
-  link: string;
-  title: string;
-  snippet: string;
-  platform: Platform;
-  query: string;
-};
+export type { SerperCandidate } from "@/lib/miner/search-pipeline";
 
 type ProfileRow = {
   id: string;
@@ -96,27 +95,21 @@ function normalizePlatforms(raw: string[]): Platform[] {
     twitter: "x",
     hackernews: "hackernews",
     hn: "hackernews",
+    indiehackers: "indiehackers",
+    ih: "indiehackers",
+    "indie hackers": "indiehackers",
+    producthunt: "producthunt",
+    ph: "producthunt",
+    "product hunt": "producthunt",
   };
   const out = new Set<Platform>();
   for (const item of raw) {
     const p = map[item.toLowerCase().trim()];
     if (p) out.add(p);
   }
-  return out.size > 0 ? [...out] : ["reddit", "x", "hackernews"];
-}
-
-function detectPlatformFromUrl(link: string): Platform | null {
-  try {
-    const host = new URL(link).hostname.toLowerCase();
-    if (host.includes("reddit.com")) return "reddit";
-    if (host.includes("twitter.com") || host.includes("x.com")) return "x";
-    if (host.includes("news.ycombinator.com") || host.includes("ycombinator.com")) {
-      return "hackernews";
-    }
-  } catch {
-    return null;
-  }
-  return null;
+  return out.size > 0
+    ? [...out]
+    : ["reddit", "hackernews", "indiehackers", "producthunt"];
 }
 
 /** Step A: load product_dna + persona_context, enforce lock, then set is_mining. */
@@ -199,83 +192,6 @@ export async function releaseMiningLock(
   if (error) {
     console.error("[hunt] Failed to release mining lock:", error.message);
   }
-}
-
-async function fetchSerperQuery(query: string): Promise<SerperCandidate[]> {
-  const apiKey = process.env.SERPER_API_KEY;
-  if (!apiKey) {
-    throw new HuntError("SERPER_API_KEY is not configured", 500, "serper");
-  }
-
-  let response: Response;
-  try {
-    response = await fetch("https://google.serper.dev/search", {
-      method: "POST",
-      headers: {
-        "X-API-KEY": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        q: query,
-        num: SERPER_RESULTS_PER_QUERY,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-  } catch (cause) {
-    const msg = cause instanceof Error ? cause.message : "Serper request failed";
-    throw new HuntError(`Serper fetch failed: ${msg}`, 502, "serper");
-  }
-
-  if (!response.ok) {
-    const detail = (await response.text()).slice(0, 300);
-    throw new HuntError(
-      `Serper returned ${response.status}: ${detail}`,
-      502,
-      "serper"
-    );
-  }
-
-  const json = (await response.json()) as {
-    organic?: { link?: string; title?: string; snippet?: string }[];
-  };
-
-  const organic = json.organic ?? [];
-  const candidates: SerperCandidate[] = [];
-
-  for (const item of organic) {
-    const link = item.link?.trim();
-    if (!link) continue;
-    const platform = detectPlatformFromUrl(link);
-    if (!platform) continue;
-    candidates.push({
-      link,
-      title: item.title?.trim() || "Untitled thread",
-      snippet: item.snippet?.trim() || "",
-      platform,
-      query,
-    });
-  }
-
-  return candidates;
-}
-
-export async function fetchAllSerperCandidates(
-  queries: string[]
-): Promise<SerperCandidate[]> {
-  const batch = queries.slice(0, 5);
-  const settled = await Promise.allSettled(
-    batch.map((q) => fetchSerperQuery(q))
-  );
-
-  const merged: SerperCandidate[] = [];
-  for (const result of settled) {
-    if (result.status === "fulfilled") {
-      merged.push(...result.value);
-    } else {
-      console.error("[hunt] Serper query failed:", result.reason);
-    }
-  }
-  return merged;
 }
 
 export async function sourceUrlExistsGlobally(
@@ -410,6 +326,11 @@ export async function insertLead(params: {
   }
 }
 
+/** Primary entry for POST /api/miner/hunt — runs Serper discovery + intent scoring + lead inserts. */
+export async function executeLeadHunt(userId: string): Promise<HuntResult> {
+  return executeHuntLoop(userId);
+}
+
 export async function executeHuntLoop(userId: string): Promise<HuntResult> {
   let lockHeld = false;
 
@@ -455,6 +376,11 @@ export async function executeHuntLoop(userId: string): Promise<HuntResult> {
         }
 
         const postText = `${candidate.title}\n\n${candidate.snippet}`.trim();
+        if (snippetContainsStaleYear(postText)) {
+          skippedOverlap++;
+          continue;
+        }
+
         const intentScore = await scoreIntentWithOpenAI({
           postText,
           painPoints: dna.painPoints,

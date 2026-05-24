@@ -17,8 +17,18 @@ export function normalizePlatform(
   if (url.includes("news.ycombinator.com") || url.includes("ycombinator.com")) {
     return "hackernews";
   }
+  if (url.includes("indiehackers.com")) return "indiehackers";
+  if (url.includes("producthunt.com")) return "producthunt";
   const p = String(platform ?? "").toLowerCase();
-  if (p === "reddit" || p === "x" || p === "hackernews") return p;
+  if (
+    p === "reddit" ||
+    p === "x" ||
+    p === "hackernews" ||
+    p === "indiehackers" ||
+    p === "producthunt"
+  ) {
+    return p;
+  }
   return "reddit";
 }
 

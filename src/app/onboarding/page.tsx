@@ -44,6 +44,8 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   reddit: "Reddit",
   x: "X",
   hackernews: "Hacker News",
+  indiehackers: "Indie Hackers",
+  producthunt: "Product Hunt",
 };
 
 function parseAudienceChips(audience: string): string[] {
@@ -112,23 +114,48 @@ export default function OnboardingPage() {
           body: JSON.stringify({ url: targetUrl }),
         });
 
-        const json = (await res.json()) as {
+        const data = (await res.json()) as {
           ok?: boolean;
           dna?: ProductDNA;
+          productName?: string;
           error?: string;
+          details?: string;
         };
 
         if (runIdRef.current !== runId) return;
 
-        if (!res.ok || !json.ok || !json.dna) {
-          throw new Error(json.error ?? "Analysis failed");
-        }
+        if (res.ok && data) {
+          const extractedDna = data.dna
+            ? data.dna
+            : data.productName
+              ? (data as ProductDNA)
+              : null;
 
-        setStepStates(PROCESSING_STEPS.map(() => "done"));
-        setProgress(100);
-        setDraft(json.dna);
-        setPhase("verify");
-        toast.success("Product DNA extracted — review and edit before saving");
+          if (extractedDna) {
+            setStepStates(PROCESSING_STEPS.map(() => "done"));
+            setProgress(100);
+            setDraft(extractedDna);
+            setPhase("verify");
+            toast.success(
+              "Product DNA extracted — review and edit before saving"
+            );
+          } else {
+            console.error(
+              "Payload structure did not match expected ProductDNA properties",
+              data
+            );
+            toast.error(
+              "Received an unrecognized data blueprint layout from the server."
+            );
+            setPhase("input");
+          }
+        } else {
+          throw new Error(
+            data?.error ||
+              data?.details ||
+              "Failed to analyze target website configuration."
+          );
+        }
       } catch (err) {
         if (runIdRef.current !== runId) return;
         const message =
@@ -178,6 +205,10 @@ export default function OnboardingPage() {
       twitter: "x",
       hackernews: "hackernews",
       hn: "hackernews",
+      indiehackers: "indiehackers",
+      ih: "indiehackers",
+      producthunt: "producthunt",
+      ph: "producthunt",
     };
     const platform = map[value];
     if (platform && !draft.targetPlatforms.includes(platform)) {

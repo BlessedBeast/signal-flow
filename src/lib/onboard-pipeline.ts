@@ -20,21 +20,48 @@ const aiDnaSchema = z.object({
   keywords: z.array(z.string()).default([]),
 });
 
+export type PipelineStep = "auth" | "scrape" | "extract" | "vault";
+
 export class PipelineError extends Error {
   constructor(
     message: string,
     public readonly status: number = 500,
-    public readonly step?: "scrape" | "extract" | "vault" | "auth"
+    public readonly step?: PipelineStep,
+    public readonly label?: string,
+    public readonly details?: string
   ) {
     super(message);
     this.name = "PipelineError";
   }
 }
 
+export function pipelineErrorLabel(error: PipelineError): string {
+  if (error.label) return error.label;
+  switch (error.step) {
+    case "auth":
+      return "Authentication Failed";
+    case "scrape":
+      return "Jina Fetch Failed";
+    case "extract":
+      return "OpenAI Extraction Failed";
+    case "vault":
+      return "Vault Save Failed";
+    default:
+      return "Analysis Failed";
+  }
+}
+
 export function normalizeTargetUrl(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) {
-    throw new PipelineError("url is required", 400);
+    console.error("[ANALYZE TRACE] URL validation failed: empty url string");
+    throw new PipelineError(
+      "url is required",
+      400,
+      undefined,
+      "Invalid URL",
+      "Request body must include a non-empty url field"
+    );
   }
   const withProtocol = /^https?:\/\//i.test(trimmed)
     ? trimmed
@@ -42,11 +69,26 @@ export function normalizeTargetUrl(raw: string): string {
   try {
     const parsed = new URL(withProtocol);
     if (!parsed.hostname) {
-      throw new PipelineError("Invalid URL", 400);
+      console.error("[ANALYZE TRACE] URL validation failed: missing hostname");
+      throw new PipelineError(
+        "Invalid URL",
+        400,
+        undefined,
+        "Invalid URL",
+        "URL must include a valid hostname"
+      );
     }
     return parsed.toString();
-  } catch {
-    throw new PipelineError("Invalid URL format", 400);
+  } catch (err) {
+    if (err instanceof PipelineError) throw err;
+    console.error("[ANALYZE TRACE] URL validation failed:", err);
+    throw new PipelineError(
+      "Invalid URL format",
+      400,
+      undefined,
+      "Invalid URL",
+      err instanceof Error ? err.message : "Malformed URL"
+    );
   }
 }
 
@@ -60,15 +102,36 @@ function extractBearerToken(request: Request): string | null {
 }
 
 export async function resolveAuthenticatedUserId(
-  request: Request
+  request: Request,
+  options?: { trace?: boolean }
 ): Promise<string | null> {
+  const trace = options?.trace ?? false;
   const token = extractBearerToken(request);
-  if (!token) return null;
+
+  if (!token) {
+    if (trace) {
+      console.error(
+        "[ANALYZE TRACE] Authentication failed: no Bearer token on Authorization header"
+      );
+    }
+    return null;
+  }
 
   const { data, error } = await supabaseServer.auth.getUser(token);
   if (error || !data.user?.id) {
+    if (trace) {
+      console.error(
+        "[ANALYZE TRACE] Authentication failed: Supabase could not validate session token",
+        error?.message ?? "unknown auth error"
+      );
+    }
     return null;
   }
+
+  if (trace) {
+    console.log("[ANALYZE TRACE] Authenticated user ID:", data.user.id);
+  }
+
   return data.user.id;
 }
 
@@ -78,12 +141,21 @@ function truncateForModel(text: string, max = MAX_SCRAPE_CHARS): string {
 }
 
 export async function scrapeWithJina(url: string): Promise<string> {
+  console.log("[ANALYZE TRACE] Checkpoint 3: JINA AI SCRAPER");
   const jinaKey = process.env.JINA_API_KEY;
   if (!jinaKey) {
-    throw new PipelineError("JINA_API_KEY is not configured", 500, "scrape");
+    console.error("[ANALYZE TRACE] Jina aborted: JINA_API_KEY is not configured");
+    throw new PipelineError(
+      "JINA_API_KEY is not configured",
+      500,
+      "scrape",
+      "Jina Fetch Failed",
+      "Server missing JINA_API_KEY environment variable"
+    );
   }
 
   const jinaUrl = `https://r.jina.ai/${url}`;
+  console.log("[ANALYZE TRACE] Launching Jina fetch for URL:", url);
 
   let response: Response;
   try {
@@ -99,19 +171,29 @@ export async function scrapeWithJina(url: string): Promise<string> {
   } catch (cause) {
     const message =
       cause instanceof Error ? cause.message : "Jina request failed";
+    console.error("[ANALYZE TRACE] Jina network/request error:", message);
     throw new PipelineError(
       `Jina scrape failed: ${message}`,
       502,
-      "scrape"
+      "scrape",
+      "Jina Fetch Failed",
+      message
     );
   }
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 300);
+    console.error(
+      "[ANALYZE TRACE] Jina rejected request — HTTP status:",
+      response.status,
+      detail || response.statusText
+    );
     throw new PipelineError(
       `Jina returned ${response.status}: ${detail || response.statusText}`,
       502,
-      "scrape"
+      "scrape",
+      "Jina Fetch Failed",
+      detail || response.statusText
     );
   }
 
@@ -134,16 +216,39 @@ export async function scrapeWithJina(url: string): Promise<string> {
     } else {
       text = await response.text();
     }
-  } catch {
-    throw new PipelineError("Failed to read Jina response body", 502, "scrape");
+  } catch (readErr) {
+    const message =
+      readErr instanceof Error
+        ? readErr.message
+        : "Failed to read Jina response body";
+    console.error("[ANALYZE TRACE] Jina response body read error:", message);
+    throw new PipelineError(
+      "Failed to read Jina response body",
+      502,
+      "scrape",
+      "Jina Fetch Failed",
+      message
+    );
   }
 
   const trimmed = text.trim();
   if (!trimmed) {
-    throw new PipelineError("Jina returned empty content", 502, "scrape");
+    console.error("[ANALYZE TRACE] Jina returned empty markdown content");
+    throw new PipelineError(
+      "Jina returned empty content",
+      502,
+      "scrape",
+      "Jina Fetch Failed",
+      "Scrape succeeded but response body was empty"
+    );
   }
 
-  return truncateForModel(trimmed);
+  const markdown = truncateForModel(trimmed);
+  console.log(
+    "[ANALYZE TRACE] Jina markdown received — character length:",
+    markdown.length
+  );
+  return markdown;
 }
 
 function buildExtractionPrompt(siteUrl: string, markdown: string): string {
@@ -199,6 +304,12 @@ function normalizePlatforms(raw: string[]): Platform[] {
     hackernews: "hackernews",
     hn: "hackernews",
     "hacker news": "hackernews",
+    indiehackers: "indiehackers",
+    ih: "indiehackers",
+    "indie hackers": "indiehackers",
+    producthunt: "producthunt",
+    ph: "producthunt",
+    "product hunt": "producthunt",
   };
   const out = new Set<Platform>();
   for (const item of raw) {
@@ -207,7 +318,7 @@ function normalizePlatforms(raw: string[]): Platform[] {
     if (platform) out.add(platform);
   }
   if (out.size === 0) {
-    return ["reddit", "x", "hackernews"];
+    return ["reddit", "hackernews", "indiehackers", "producthunt"];
   }
   return [...out];
 }
@@ -229,12 +340,19 @@ export function mapAiJsonToProductDNA(
   raw: unknown,
   fallbackUrl: string
 ): ProductDNA {
+  console.log("[ANALYZE TRACE] Checkpoint 5: ZOD SCHEMA BINDING");
   const parsed = aiDnaSchema.safeParse(raw);
   if (!parsed.success) {
+    console.error(
+      "[ANALYZE TRACE] Zod Parsing Validation failed details:",
+      parsed.error.issues
+    );
     throw new PipelineError(
       `AI response failed schema validation: ${parsed.error.message}`,
       502,
-      "extract"
+      "extract",
+      "Zod Schema Validation Failed",
+      parsed.error.message
     );
   }
 
@@ -260,10 +378,27 @@ export async function extractProductDNAWithOpenAI(
   siteUrl: string,
   markdown: string
 ): Promise<ProductDNA> {
+  console.log("[ANALYZE TRACE] Checkpoint 4: OPENAI STRUCTURAL INTERPRETATION");
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) {
-    throw new PipelineError("OPENAI_API_KEY is not configured", 500, "extract");
+    console.error(
+      "[ANALYZE TRACE] OpenAI aborted: OPENAI_API_KEY is not configured"
+    );
+    throw new PipelineError(
+      "OPENAI_API_KEY is not configured",
+      500,
+      "extract",
+      "OpenAI Extraction Failed",
+      "Server missing OPENAI_API_KEY environment variable"
+    );
   }
+
+  console.log(
+    "[ANALYZE TRACE] Firing gpt-4o completion — site:",
+    siteUrl,
+    "| markdown chars:",
+    markdown.length
+  );
 
   let response: Response;
   try {
@@ -294,19 +429,29 @@ export async function extractProductDNAWithOpenAI(
   } catch (cause) {
     const message =
       cause instanceof Error ? cause.message : "OpenAI request failed";
+    console.error("[ANALYZE TRACE] OpenAI network/request error:", message);
     throw new PipelineError(
       `OpenAI extraction failed: ${message}`,
       502,
-      "extract"
+      "extract",
+      "OpenAI Extraction Failed",
+      message
     );
   }
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 400);
+    console.error(
+      "[ANALYZE TRACE] OpenAI rejected request — HTTP status:",
+      response.status,
+      detail
+    );
     throw new PipelineError(
       `OpenAI returned ${response.status}: ${detail}`,
       502,
-      "extract"
+      "extract",
+      "OpenAI Extraction Failed",
+      detail
     );
   }
 
@@ -316,23 +461,63 @@ export async function extractProductDNAWithOpenAI(
 
   try {
     completion = (await response.json()) as typeof completion;
-  } catch {
-    throw new PipelineError("OpenAI returned invalid JSON", 502, "extract");
+  } catch (parseEnvelopeErr) {
+    const message =
+      parseEnvelopeErr instanceof Error
+        ? parseEnvelopeErr.message
+        : "OpenAI returned invalid JSON envelope";
+    console.error("[ANALYZE TRACE] OpenAI envelope parse error:", message);
+    throw new PipelineError(
+      "OpenAI returned invalid JSON",
+      502,
+      "extract",
+      "OpenAI Extraction Failed",
+      message
+    );
   }
 
   const content = completion.choices?.[0]?.message?.content;
   if (!content) {
-    throw new PipelineError("OpenAI returned empty completion", 502, "extract");
+    console.error("[ANALYZE TRACE] OpenAI returned empty completion content");
+    throw new PipelineError(
+      "OpenAI returned empty completion",
+      502,
+      "extract",
+      "OpenAI Extraction Failed",
+      "choices[0].message.content was empty"
+    );
   }
+
+  console.log(
+    "[ANALYZE TRACE] Raw AI Extraction Response received:",
+    content
+  );
 
   let json: unknown;
   try {
     json = JSON.parse(content) as unknown;
-  } catch {
-    throw new PipelineError("OpenAI returned non-JSON content", 502, "extract");
+  } catch (parseErr) {
+    const message =
+      parseErr instanceof Error ? parseErr.message : "JSON parse failed";
+    console.error(
+      "[ANALYZE TRACE] OpenAI content is not valid JSON:",
+      message
+    );
+    throw new PipelineError(
+      "OpenAI returned non-JSON content",
+      502,
+      "extract",
+      "OpenAI Extraction Failed",
+      message
+    );
   }
 
-  return mapAiJsonToProductDNA(json, siteUrl);
+  const dna = mapAiJsonToProductDNA(json, siteUrl);
+  console.log(
+    "[ANALYZE TRACE] Product DNA schema binding succeeded — product:",
+    dna.productName
+  );
+  return dna;
 }
 
 export async function persistProductDnaToVault(

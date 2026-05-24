@@ -167,6 +167,8 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
 
       if (!session) {
         setLeadsState([]);
+        setProfileState(EMPTY_PROFILE);
+        setDnaState(initialDNA);
         return false;
       }
 
@@ -203,6 +205,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
 
       if (!session) {
         setProfileState(EMPTY_PROFILE);
+        setDnaState(initialDNA);
         userIdRef.current = null;
         return false;
       }
@@ -334,6 +337,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
         teardownRealtime();
         setLeadsState([]);
         setProfileState(EMPTY_PROFILE);
+        setDnaState(initialDNA);
         return;
       }
 
@@ -357,6 +361,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
         teardownRealtime();
         setLeadsState([]);
         setProfileState(EMPTY_PROFILE);
+        setDnaState(initialDNA);
       }
     });
 

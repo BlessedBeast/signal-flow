@@ -1,9 +1,11 @@
 import { z } from "zod";
 
 import { resolveAuthenticatedUserId } from "@/lib/onboard-pipeline";
+import { safeParseProductDna } from "@/lib/product-dna-schema";
 import type {
   CompetitorBattlecards,
   ConversationTurn,
+  ProductDNA,
 } from "@/lib/signalflow-types";
 import { supabaseServer } from "@/lib/supabase-server";
 
@@ -106,9 +108,15 @@ async function fetchLeadForUser(
     .maybeSingle();
 
   if (error) {
+    console.error(
+      "[REPLY TRACE] Lead fetch rejected by Supabase:",
+      error.message,
+      error.details
+    );
     throw new ReplyError(`Failed to load lead: ${error.message}`, 500, "lead");
   }
   if (!data) {
+    console.error("[REPLY TRACE] Lead not found for user:", userId, leadId);
     throw new ReplyError("Lead not found", 404, "lead");
   }
   return data as LeadRow;
@@ -160,14 +168,22 @@ function buildBattlecardSystemBlock(match: {
 async function fetchOperatorProfileContext(userId: string): Promise<{
   personaContext: string;
   battlecards: CompetitorBattlecards;
+  productDna: ProductDNA | null;
 }> {
+  console.log("[REPLY TRACE] Checkpoint 3: Profile Context Fetch — userId:", userId);
+
   const { data, error } = await supabaseServer
     .from("profiles")
-    .select("persona_context, competitor_battlecards")
+    .select("persona_context, competitor_battlecards, product_dna")
     .eq("id", userId)
     .maybeSingle();
 
   if (error) {
+    console.error(
+      "[REPLY TRACE] Profile fetch rejected by Supabase:",
+      error.message,
+      error.details
+    );
     throw new ReplyError(
       `Failed to load operator profile: ${error.message}`,
       500,
@@ -175,32 +191,35 @@ async function fetchOperatorProfileContext(userId: string): Promise<{
     );
   }
 
+  const productDna = safeParseProductDna(data?.product_dna);
+  console.log(
+    "[REPLY TRACE] Profile DNA retrieved keys:",
+    Object.keys(productDna ?? {})
+  );
+  console.log("[REPLY TRACE] Profile context loaded:", {
+    hasPersona: Boolean(data?.persona_context),
+    battlecardCount: Object.keys(
+      parseBattlecardsFromDb(data?.competitor_battlecards)
+    ).length,
+    hasProductDna: productDna !== null,
+  });
+
   return {
     personaContext: (data?.persona_context as string | null)?.trim() ?? "",
     battlecards: parseBattlecardsFromDb(data?.competitor_battlecards),
+    productDna,
   };
 }
 
-function buildRoughEdgesBlock(ctx: SourceCommunityContext): string {
-  const platformName =
-    ctx.platform === "reddit"
-      ? ctx.subreddit
-        ? `Reddit (r/${ctx.subreddit})`
-        : "Reddit"
-      : ctx.platform === "hackernews"
-        ? "Hacker News"
-        : ctx.platform === "x"
-          ? "X (Twitter)"
-          : "a community forum";
-
-  return `ROUGH EDGES ENGINE — non-negotiable:
-- Fragmented, casual pacing. Short bursts beat long paragraphs.
-- Strictly NO corporate greetings (e.g. "Hi there", "Hope you're well").
-- Strictly NO sign-offs (e.g. "Best", "Cheers", "Thanks in advance").
-- Strictly NO summaries, bullet points, or polished marketing lists.
-- Occasionally mid-thought or simple sentence fragments — authentic to ${platformName}.
-- Sound like a peer on ${platformName}, not customer support or sales automation.
-- Output ONLY the reply text the operator would paste. No quotes, labels, or meta commentary.`;
+function buildAntiAiDetectionToneBlock(): string {
+  return `CRITICAL TONE CONSTRAINTS (ANTI-AI DETECTION):
+You are an exhausted, highly technical indie-hacker scrolling a forum on your phone. You are NOT a helpful assistant, marketer, or AI.
+1. BAN LIST: You must NEVER use the following words: 'delve, leverage, maze, goldmine, unlock, supercharge, crucial, pain point, right?, remember, in conclusion, game-changer, hope that helps, happy to help.'
+2. SYNTAX: Write in lowercase-heavy, fragmented sentences. Do not use perfect grammar. Use casual abbreviations (e.g., 'idk', 'tbh', 'imo', 'wdym').
+3. NO RHETORICAL QUESTIONS: Never open or close with a question like 'Have you tried...?' or 'Makes sense, right?'.
+4. STRUCTURE: No bullet points. No bold text. One or two short, blocky paragraphs max.
+5. THE 'ROUGH EDGE': Introduce a slight grammatical flaw (like a missing apostrophe or a trailing comma) to prove human origin. Be hyper-specific to the technical context.
+6. THE PUNCTUATION TRAP: You must NEVER use the em-dash (—) or en-dash (–) characters under any circumstances. Only use standard commas, periods, or a basic keyboard hyphen (-). Subreddit auto-moderators use the em-dash as a hardcoded Regex trigger to instantly block AI content.`;
 }
 
 export async function generateRoughEdgesReply(params: {
@@ -235,16 +254,26 @@ export async function generateRoughEdgesReply(params: {
 
   let communityProtocolFlags = getDefaultComplianceFlags(communityCtx.platform);
   try {
+    console.log(
+      "[REPLY TRACE] Checkpoint 4: Compliance Matrix Query — sourceUrl:",
+      sourceUrl,
+      "| platform:",
+      params.platform
+    );
     const cachedFlags = await fetchAndCacheCommunityRules(
       sourceUrl,
       params.platform
+    );
+    console.log(
+      "[REPLY TRACE] Compliance rules resolved — flag count:",
+      cachedFlags.length
     );
     if (cachedFlags.length > 0) {
       communityProtocolFlags = cachedFlags;
     }
   } catch (err) {
     console.error(
-      "[reply] compliance cache/scrape failed, using defaults:",
+      "[REPLY TRACE] Compliance cache/scrape failed, using defaults:",
       err instanceof Error ? err.message : err
     );
   }
@@ -263,18 +292,16 @@ export async function generateRoughEdgesReply(params: {
 
   const flywheelSection = flywheelBlock ? `\n\n${flywheelBlock}` : "";
 
-  const systemPrompt = `You write community replies for a real human operator — never as a brand bot.
-
-OPERATOR PERSONA (mandatory — match this voice exactly):
+  const systemPrompt = `OPERATOR PERSONA (mandatory — match this voice exactly):
 ${persona}${battlecardBlock}
+
+${buildAntiAiDetectionToneBlock()}
 
 ${complianceBlock}
 
 ${communityProtocolsBlock}
 
-${depthBlock}${flywheelSection}
-
-${buildRoughEdgesBlock(communityCtx)}`;
+${depthBlock}${flywheelSection}`;
 
   const historyBlock = formatHistoryForPrompt(params.conversationHistory);
   const task = params.prospectResponse
@@ -300,6 +327,12 @@ ${task}`;
 
   let response: Response;
   try {
+    console.log(
+      "[REPLY TRACE] Checkpoint 5: OpenAI Pipeline Fire — model:",
+      OPENAI_MODEL,
+      "| operatorTurns:",
+      communityCtx.operatorTurnCount
+    );
     response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -308,7 +341,7 @@ ${task}`;
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
-        temperature: 0.85,
+        temperature: 0.8,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -318,11 +351,17 @@ ${task}`;
     });
   } catch (cause) {
     const msg = cause instanceof Error ? cause.message : "OpenAI request failed";
+    console.error("[REPLY TRACE] OpenAI network/request error:", msg);
     throw new ReplyError(`Reply generation failed: ${msg}`, 502, "openai");
   }
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 400);
+    console.error(
+      "[REPLY TRACE] OpenAI rejected request — HTTP status:",
+      response.status,
+      detail
+    );
     throw new ReplyError(
       `OpenAI returned ${response.status}: ${detail}`,
       502,
@@ -336,9 +375,14 @@ ${task}`;
 
   const reply = completion.choices?.[0]?.message?.content?.trim();
   if (!reply) {
+    console.error("[REPLY TRACE] OpenAI returned empty reply content");
     throw new ReplyError("OpenAI returned an empty reply", 502, "openai");
   }
 
+  console.log(
+    "[REPLY TRACE] OpenAI draft generated — character length:",
+    reply.length
+  );
   return reply;
 }
 
@@ -359,6 +403,11 @@ async function persistReplyUpdate(params: {
     .eq("user_id", params.userId);
 
   if (error) {
+    console.error(
+      "[REPLY TRACE] Lead ledger update rejected by Supabase:",
+      error.message,
+      error.details
+    );
     throw new ReplyError(
       `Failed to update lead ledger: ${error.message}`,
       500,
@@ -373,6 +422,19 @@ export async function executeReplyGeneration(
   prospectResponse?: string
 ): Promise<ReplyResult> {
   const lead = await fetchLeadForUser(leadId, userId);
+  console.log("[REPLY TRACE] Lead record loaded:", {
+    id: lead.id,
+    platform: lead.platform,
+    source_url: lead.source_url,
+    contentLength: lead.content.length,
+    historyTurns: parseConversationHistory(lead.conversation_history).length,
+    hasExistingDraft: Boolean(lead.ai_draft_content?.trim()),
+  });
+  console.log(
+    "[REPLY TRACE] Target community / source URL:",
+    lead.source_url ?? "(none)"
+  );
+
   const { personaContext, battlecards } =
     await fetchOperatorProfileContext(userId);
 

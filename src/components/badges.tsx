@@ -1,8 +1,16 @@
-import { Flame, Snowflake, Sun } from "lucide-react";
+import {
+  Flame,
+  Snowflake,
+  Sun,
+  Terminal,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
   getIntentTier,
+  parsePlatform,
   type IntentTier,
   type LeadStatus,
   type Platform,
@@ -41,13 +49,43 @@ const statusLabels: Record<LeadStatus, string> = {
   archived: "Archived",
 };
 
-const platformConfig: Record<
-  Platform,
-  { label: string; dotClassName: string }
-> = {
-  reddit: { label: "Reddit", dotClassName: "bg-orange-500" },
-  x: { label: "X", dotClassName: "bg-zinc-100" },
-  hackernews: { label: "Hacker News", dotClassName: "bg-orange-600" },
+type PlatformBadgeConfig = {
+  label: string;
+  icon: LucideIcon;
+  className: string;
+};
+
+const platformConfig: Record<Platform, PlatformBadgeConfig> = {
+  reddit: {
+    label: "Reddit",
+    icon: Flame,
+    className:
+      "gap-1.5 border-border/60 bg-card/80 font-medium text-foreground",
+  },
+  x: {
+    label: "X",
+    icon: Zap,
+    className:
+      "gap-1.5 border-zinc-500/25 bg-zinc-500/10 font-medium text-zinc-800 dark:text-zinc-200",
+  },
+  hackernews: {
+    label: "Hacker News",
+    icon: Terminal,
+    className:
+      "gap-1.5 border-orange-500/30 bg-orange-500/15 font-medium text-orange-700 dark:text-orange-400",
+  },
+  indiehackers: {
+    label: "Indie Hackers",
+    icon: Zap,
+    className:
+      "gap-1.5 border-indigo-600/30 bg-indigo-950/15 font-medium text-indigo-800 dark:text-indigo-300",
+  },
+  producthunt: {
+    label: "Product Hunt",
+    icon: Flame,
+    className:
+      "gap-1.5 border-rose-500/30 bg-orange-500/15 font-medium text-rose-700 dark:text-orange-400",
+  },
 };
 
 export function IntentBadge({
@@ -91,27 +129,56 @@ export function StatusBadge({
 }
 
 export function PlatformBadge({
-  platform,
+  platform: rawPlatform,
   className,
 }: {
-  platform: Platform;
+  platform: Platform | string;
   className?: string;
 }) {
-  const { label, dotClassName } = platformConfig[platform];
-
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "gap-1.5 border-border/60 bg-card/80 font-medium text-foreground",
-        className
-      )}
-    >
-      <span
-        className={cn("size-1.5 shrink-0 rounded-full", dotClassName)}
-        aria-hidden
-      />
-      {label}
-    </Badge>
+  const platform = parsePlatform(
+    typeof rawPlatform === "string" ? rawPlatform : rawPlatform
   );
+  const { label, icon: Icon, className: style } = platformConfig[platform];
+
+  switch (platform) {
+    case "hackernews":
+      return (
+        <Badge variant="outline" className={cn(style, className)}>
+          <Terminal className="size-3 shrink-0" aria-hidden />
+          Hacker News
+        </Badge>
+      );
+    case "indiehackers":
+      return (
+        <Badge variant="outline" className={cn(style, className)}>
+          <Zap className="size-3 shrink-0" aria-hidden />
+          Indie Hackers
+        </Badge>
+      );
+    case "producthunt":
+      return (
+        <Badge variant="outline" className={cn(style, className)}>
+          <Flame className="size-3 shrink-0" aria-hidden />
+          Product Hunt
+        </Badge>
+      );
+    case "reddit":
+      return (
+        <Badge variant="outline" className={cn(style, className)}>
+          <span
+            className="size-1.5 shrink-0 rounded-full bg-orange-500"
+            aria-hidden
+          />
+          {label}
+        </Badge>
+      );
+    case "x":
+    default:
+      return (
+        <Badge variant="outline" className={cn(style, className)}>
+          <Icon className="size-3 shrink-0" aria-hidden />
+          {label}
+        </Badge>
+      );
+  }
 }

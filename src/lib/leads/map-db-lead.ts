@@ -6,6 +6,7 @@ import type {
   LeadStatus,
   Platform,
 } from "@/lib/signalflow-types";
+import { parsePlatform } from "@/lib/signalflow-types";
 
 const conversationTurnSchema = z.object({
   role: z.enum(["prospect", "user"]),
@@ -40,13 +41,17 @@ function authorFromPlatform(platform: Platform): string {
       return "@prospect";
     case "hackernews":
       return "hn_user";
+    case "indiehackers":
+      return "ih_member";
+    case "producthunt":
+      return "ph_maker";
     default:
       return "Community";
   }
 }
 
 export function mapDbLeadToClient(row: DbLeadRow): Lead {
-  const platform = (row.platform ?? "reddit") as Platform;
+  const platform = parsePlatform(row.platform);
   return {
     id: row.id,
     content: row.content ?? "",

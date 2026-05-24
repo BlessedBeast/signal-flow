@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Loader2,
+  RefreshCw,
   Sparkles,
   Trophy,
   XCircle,
@@ -41,6 +42,8 @@ const PLATFORM_THREAD_LABEL: Record<Platform, string> = {
   reddit: "Reddit thread",
   x: "X post",
   hackernews: "HN thread",
+  indiehackers: "Indie Hackers post",
+  producthunt: "Product Hunt thread",
 };
 
 type LeadSheetProps = {
@@ -83,12 +86,16 @@ export function LeadSheet({
     "won" | "lost" | null
   >(null);
   const [isGeneratingBaseDraft, setIsGeneratingBaseDraft] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const isDraftGenerating = isGeneratingBaseDraft || isRegenerating;
 
   useEffect(() => {
     if (!lead || !open) return;
     setFollowUpInput("");
     setCopied(false);
     setIsGeneratingBaseDraft(false);
+    setIsRegenerating(false);
     setDraftText(
       hasDraftContent(lead.ai_draft_content) ? lead.ai_draft_content!.trim() : ""
     );
@@ -142,8 +149,64 @@ export function LeadSheet({
     }
   }
 
+  async function handleRegenerateDraft() {
+    if (!lead) return;
+
+    setIsRegenerating(true);
+    const toastId = toast.loading(
+      "Compiling a fresh anti-detection perspective..."
+    );
+
+    try {
+      const headers = await getAuthHeaders();
+      if (!headers.Authorization) {
+        toast.error("Sign in to regenerate reply drafts.", { id: toastId });
+        return;
+      }
+
+      const res = await fetch("/api/leads/reply", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ leadId: lead.id }),
+      });
+
+      const json = (await res.json()) as {
+        ok?: boolean;
+        reply?: string;
+        conversation_history?: Lead["conversation_history"];
+        ai_draft_content?: string;
+        error?: string;
+        details?: string;
+      };
+
+      if (!res.ok || !json.ok || !json.reply) {
+        toast.error(
+          res.status >= 500
+            ? "Failed to cycle draft engine."
+            : (json.error ?? json.details ?? "Failed to cycle draft engine."),
+          { id: toastId }
+        );
+        return;
+      }
+
+      const reply = json.reply;
+      setDraftText(reply);
+      onUpdateLead(lead.id, {
+        ai_draft_content: json.ai_draft_content ?? reply,
+        conversation_history:
+          json.conversation_history ?? lead.conversation_history,
+        status: lead.status === "new" ? "drafted" : lead.status,
+      });
+      toast.success("Fresh draft prepared!", { id: toastId });
+    } catch {
+      toast.error("Failed to cycle draft engine.", { id: toastId });
+    } finally {
+      setIsRegenerating(false);
+    }
+  }
+
   async function handleCopy() {
-    if (!draftText || isGeneratingBaseDraft) return;
+    if (!draftText || isDraftGenerating) return;
     await navigator.clipboard.writeText(draftText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -246,7 +309,7 @@ export function LeadSheet({
   }
 
   function saveDraft() {
-    if (!lead || isGeneratingBaseDraft) return;
+    if (!lead || isDraftGenerating) return;
     onUpdateLead(lead.id, {
       ai_draft_content: draftText,
       status: lead.status === "new" ? "drafted" : lead.status,
@@ -392,7 +455,9 @@ export function LeadSheet({
                     key={status}
                     type="button"
                     disabled={
-                      statusLoading !== null || conversionLoading !== null
+                      statusLoading !== null ||
+                      conversionLoading !== null ||
+                      isDraftGenerating
                     }
                     onClick={() => void applyStatus(status)}
                     className={cn(
@@ -419,7 +484,7 @@ export function LeadSheet({
                     className="flex-1 gap-1.5 bg-emerald-600 hover:bg-emerald-600/90"
                     disabled={
                       conversionLoading !== null ||
-                      isGeneratingBaseDraft ||
+                      isDraftGenerating ||
                       lead.status === "archived"
                     }
                     onClick={() => void handleConversionOutcome("won")}
@@ -438,7 +503,7 @@ export function LeadSheet({
                     className="flex-1 gap-1.5 glass-soft"
                     disabled={
                       conversionLoading !== null ||
-                      isGeneratingBaseDraft ||
+                      isDraftGenerating ||
                       lead.status === "archived"
                     }
                     onClick={() => void handleConversionOutcome("lost")}
@@ -469,21 +534,47 @@ export function LeadSheet({
                   <Label className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                     AI reply template
                   </Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="glass-soft h-8 gap-1.5"
-                    disabled={isGeneratingBaseDraft || !showDraftEditor || !draftText}
-                    onClick={() => void handleCopy()}
-                  >
-                    {copied ? (
-                      <CheckCircle2 className="size-3.5 text-primary" />
-                    ) : (
-                      <Copy className="size-3.5" />
-                    )}
-                    {copied ? "Copied" : "Copy"}
-                  </Button>
+                  {showDraftEditor ? (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "glass-soft h-8 gap-1.5 border-zinc-800/15 bg-zinc-950/[0.04] font-mono text-xs tracking-tight text-muted-foreground shadow-none",
+                          "hover:border-zinc-800/25 hover:bg-zinc-950/10 hover:text-foreground"
+                        )}
+                        disabled={isDraftGenerating || generating}
+                        onClick={() => void handleRegenerateDraft()}
+                      >
+                        <RefreshCw
+                          className={cn(
+                            "size-3.5 shrink-0",
+                            isRegenerating && "animate-spin"
+                          )}
+                          aria-hidden
+                        />
+                        Retry
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="glass-soft h-8 gap-1.5"
+                        disabled={
+                          isDraftGenerating || generating || !draftText
+                        }
+                        onClick={() => void handleCopy()}
+                      >
+                        {copied ? (
+                          <CheckCircle2 className="size-3.5 text-primary" />
+                        ) : (
+                          <Copy className="size-3.5" />
+                        )}
+                        {copied ? "Copied" : "Copy"}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
                 {showDraftEditor ? (
                   <Textarea
@@ -492,6 +583,7 @@ export function LeadSheet({
                     onBlur={saveDraft}
                     placeholder="Edit your reply before pasting on the thread…"
                     className="min-h-[120px] resize-none font-mono text-xs leading-relaxed glass"
+                    disabled={isDraftGenerating}
                   />
                 ) : (
                   <div className="glass-soft flex min-h-[140px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border/60 px-6 py-8 text-center">
@@ -560,13 +652,13 @@ export function LeadSheet({
                 onChange={(e) => setFollowUpInput(e.target.value)}
                 placeholder="Paste their latest reply here…"
                 className="min-h-[80px] resize-none glass-soft"
-                disabled={isGeneratingBaseDraft}
+                disabled={isDraftGenerating}
               />
               <Button
                 type="button"
                 className="w-full gap-2"
                 disabled={
-                  !followUpInput.trim() || generating || isGeneratingBaseDraft
+                  !followUpInput.trim() || generating || isDraftGenerating
                 }
                 onClick={() => void handleGenerateFollowUp()}
               >

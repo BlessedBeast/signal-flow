@@ -33,8 +33,10 @@ import { cn } from "@/lib/utils";
 
 const PLATFORMS: { id: Platform; label: string }[] = [
   { id: "reddit", label: "Reddit" },
-  { id: "x", label: "X" },
   { id: "hackernews", label: "HN" },
+  { id: "indiehackers", label: "IH" },
+  { id: "producthunt", label: "PH" },
+  { id: "x", label: "X" },
 ];
 
 function estimateIntentScore(content: string): number {
@@ -117,7 +119,11 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
           ? "r/manual"
           : ingestPlatform === "hackernews"
             ? "Ask HN"
-            : null,
+            : ingestPlatform === "indiehackers"
+              ? "Indie Hackers"
+              : ingestPlatform === "producthunt"
+                ? "Product Hunt"
+                : null,
     });
 
     setRawContent("");

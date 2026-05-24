@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Crosshair,
   Dna,
   LayoutDashboard,
+  LogOut,
   Megaphone,
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { ScanForLeadsButton } from "@/components/scan-for-leads-button";
+import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { useSignalFlow } from "@/lib/signalflow-store";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +27,26 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
 
 function AppShellSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { profile } = useSignalFlow();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      const supabase = createBrowserSupabase();
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("[app-shell] signOut:", error.message);
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   return (
     <aside
@@ -95,6 +116,19 @@ function AppShellSidebar() {
         </div>
 
         <ScanForLeadsButton size="sm" fullWidth />
+
+        <button
+          type="button"
+          disabled={signingOut}
+          onClick={() => void handleSignOut()}
+          className={cn(
+            "glass-soft flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors",
+            "hover:bg-sidebar-accent/70 hover:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50"
+          )}
+        >
+          <span>Sign Out</span>
+          <LogOut className="size-4 shrink-0" aria-hidden />
+        </button>
       </div>
     </aside>
   );
