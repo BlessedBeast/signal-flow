@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  resolveDailyDropQuota as resolveDailyDropQuotaForTier,
+  type SubscriptionTierId,
+} from "@/lib/billing/tiers";
+import {
   DAILY_LIMIT,
   DISCOVERY_LEADS_TABLE,
 } from "@/lib/discovery/constants";
@@ -33,11 +37,20 @@ export type DailyReleaseResult = {
   dailyDropQuota: number;
 };
 
-/** Resolves per-user daily drop size; extend when billing tiers land on profiles. */
-export function resolveDailyDropQuota(_userId?: string): number {
+/**
+ * Resolves per-user Daily Drop batch size from subscription tier.
+ * Pass `tier` when already loaded; otherwise defaults to Hobbyist (1).
+ */
+export function resolveDailyDropQuota(
+  _userId?: string,
+  tier?: SubscriptionTierId
+): number {
   void _userId;
-  return DAILY_LIMIT;
+  return resolveDailyDropQuotaForTier(tier ?? "hobbyist");
 }
+
+/** @deprecated Use tier-based `resolveDailyDropQuota`; kept for legacy imports. */
+export const LEGACY_DAILY_LIMIT = DAILY_LIMIT;
 
 const bankLog = {
   info: (msg: string) =>

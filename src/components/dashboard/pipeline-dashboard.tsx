@@ -14,6 +14,8 @@ import {
 
 import { IntentBadge, PlatformBadge, StatusBadge } from "@/components/badges";
 import { LeadSheet } from "@/components/lead-sheet";
+import { EmptyState } from "@/components/ui/empty-state";
+import { MetricHint } from "@/components/ui/metric-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,6 +71,19 @@ function snippet(text: string, max = 140) {
   const t = text.replace(/\s+/g, " ").trim();
   return t.length <= max ? t : `${t.slice(0, max)}…`;
 }
+
+const METRIC_DEFINITIONS = {
+  tracked:
+    "Total high-intent candidate channels scraped and pulled into your local database.",
+  hot: "Leads scoring 80+ intent in your active stream — volatile threads worth immediate outreach.",
+  conversion:
+    "The percentage of highly volatile viral waves you successfully hijacked within the 60-minute golden hour window.",
+  replies:
+    "Threads you marked as replied after closing the loop in the lead sheet.",
+} as const;
+
+const LEDGER_EMPTY_FOOTNOTE =
+  "Background: discovery cron mines Serper signals into your vault queue. Daily drop releases the highest-intent batch and stamps released_at for the ledger.";
 
 type PipelineDashboardProps = {
   showHeader?: boolean;
@@ -175,22 +190,36 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
             icon: MessageSquare,
             accent: "text-emerald-600",
           },
-        ].map(({ label, value, icon: Icon, accent }) => (
-          <div
-            key={label}
-            className="glass-soft rounded-2xl px-5 py-4 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                {label}
+        ].map(({ label, value, icon: Icon, accent }) => {
+          const definitionKey =
+            label === "Tracked leads"
+              ? "tracked"
+              : label === "Hot leads"
+                ? "hot"
+                : label === "Hot conversion"
+                  ? "conversion"
+                  : "replies";
+
+          return (
+            <div
+              key={label}
+              className="group glass-soft rounded-2xl px-5 py-4 shadow-sm transition-colors hover:border-primary/25 hover:ring-1 hover:ring-primary/15"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  <MetricHint
+                    label={label}
+                    definition={METRIC_DEFINITIONS[definitionKey]}
+                  />
+                </p>
+                <Icon className={cn("size-4 opacity-70", accent)} aria-hidden />
+              </div>
+              <p className={cn("mt-2 text-3xl font-semibold tabular-nums", accent)}>
+                {value}
               </p>
-              <Icon className={cn("size-4 opacity-70", accent)} aria-hidden />
             </div>
-            <p className={cn("mt-2 text-3xl font-semibold tabular-nums", accent)}>
-              {value}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <Collapsible open={ingestOpen} onOpenChange={setIngestOpen}>
@@ -280,9 +309,13 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
         </div>
 
         {streamLeadCount === 0 ? (
-          <div className="glass-soft rounded-2xl px-6 py-12 text-center text-sm text-muted-foreground">
-            No leads yet — ingest a thread above or run the miner.
-          </div>
+          <EmptyState
+            icon={Target}
+            title="Ledger awaiting daily drop"
+            description="No active stream leads yet. Run the adaptive miner from the sidebar, or manually ingest a thread above while cron queues fresh signals in the vault."
+            footnote={LEDGER_EMPTY_FOOTNOTE}
+            className="min-h-[280px]"
+          />
         ) : (
           <div className="space-y-3">
             {ledgerBuckets.map((bucket) => (

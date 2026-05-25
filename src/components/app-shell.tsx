@@ -188,9 +188,9 @@ function AppShellFrame({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       <AppShellSidebar />
-      <main className="min-h-screen flex-1 overflow-y-auto md:ml-60">
-        <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
-      </main>
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col md:ml-60">
+        {children}
+      </div>
     </div>
   );
 }

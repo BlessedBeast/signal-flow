@@ -320,14 +320,20 @@ async function persistInboundInteraction(params: {
   });
 
   if (error) {
+    const rlsViolation =
+      error.code === "42501" ||
+      /row-level security/i.test(error.message ?? "");
     console.error(
       "[INBOUND TRACE] Supabase insert rejected:",
       error.message,
-      error.details
+      error.details,
+      rlsViolation ? "(RLS — JWT may not be bound to this client)" : ""
     );
     throw new InboundError(
-      `Failed to persist inbound interaction: ${error.message}`,
-      500,
+      rlsViolation
+        ? "Failed to persist inbound interaction: not authorized (session token required for RLS)"
+        : `Failed to persist inbound interaction: ${error.message}`,
+      rlsViolation ? 403 : 500,
       "persist"
     );
   }

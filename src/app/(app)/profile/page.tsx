@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -246,12 +247,20 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        <Button
-          type="button"
-          className="mt-6 gap-2"
-          disabled={billingLoading}
-          onClick={() => void handleManageBilling()}
-        >
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button asChild variant="default" className="gap-2">
+            <Link href="/profile/billing">
+              View pricing & quota
+              <ExternalLink className="size-4 shrink-0" aria-hidden />
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={billingLoading}
+            onClick={() => void handleManageBilling()}
+          >
           {billingLoading ? (
             <>
               <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -263,7 +272,8 @@ export default function ProfilePage() {
               <ExternalLink className="size-4 shrink-0" aria-hidden />
             </>
           )}
-        </Button>
+          </Button>
+        </div>
       </section>
 
       <section className="rounded-xl glass p-6">

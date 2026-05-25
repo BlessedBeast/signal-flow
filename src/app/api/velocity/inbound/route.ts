@@ -5,10 +5,7 @@ import {
   InboundError,
   parseInboundBody,
 } from "@/lib/velocity/inbound-pipeline";
-import {
-  createRouteHandlerSupabase,
-  resolveRouteHandlerUserId,
-} from "@/lib/supabase-route";
+import { authenticateRouteHandler } from "@/lib/supabase-route";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,23 +23,24 @@ export async function POST(request: Request) {
 
   try {
     console.log("[INBOUND TRACE] Checkpoint 1: Auth verification");
-    const supabase = await createRouteHandlerSupabase(request);
-    const userId = await resolveRouteHandlerUserId(request, supabase);
-    console.log("[INBOUND TRACE] Authenticated user:", userId);
-
-    if (!userId) {
+    const auth = await authenticateRouteHandler(request);
+    if (!auth.ok) {
       console.error(
-        "[INBOUND TRACE] Authentication failed: no valid session for inbound request"
+        "[INBOUND TRACE] Authentication failed:",
+        auth.authError ?? "no valid session"
       );
       return NextResponse.json(
         {
           ok: false,
-          error: "Authentication required",
+          error: "Unauthorized",
           step: "auth",
         } satisfies InboundErrorResponse,
         { status: 401 }
       );
     }
+
+    const { supabase, user } = auth;
+    console.log("[INBOUND TRACE] Authenticated user:", user.id);
 
     let body: unknown;
     try {
@@ -76,7 +74,7 @@ export async function POST(request: Request) {
       posture
     );
 
-    const parsingResult = await executeInboundGeneration(userId, supabase, {
+    const parsingResult = await executeInboundGeneration(user.id, supabase, {
       platform,
       originalThread,
       posture,

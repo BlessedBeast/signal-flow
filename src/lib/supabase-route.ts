@@ -1,5 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  createClient,
+  type SupabaseClient,
+  type User,
+} from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 function getSupabaseEnv() {
@@ -36,15 +40,18 @@ export async function createRouteHandlerSupabase(
 
   if (bearer) {
     console.log("[AUTH] Supabase client context: Authorization Bearer");
+    // accessToken + Authorization header bind the JWT to PostgREST so auth.uid() matches RLS.
     return createClient(url, anonKey, {
       global: {
         headers: {
           Authorization: `Bearer ${bearer}`,
         },
       },
+      accessToken: async () => bearer,
       auth: {
         persistSession: false,
         autoRefreshToken: false,
+        detectSessionInUrl: false,
       },
     });
   }
@@ -70,31 +77,36 @@ export async function createRouteHandlerSupabase(
   });
 }
 
+export type RouteHandlerAuth =
+  | { ok: true; supabase: SupabaseClient; user: User }
+  | { ok: false; authError: string | null };
+
+/** Validates the request session and returns a user-scoped Supabase client for RLS writes. */
+export async function authenticateRouteHandler(
+  request: Request,
+  existingClient?: SupabaseClient
+): Promise<RouteHandlerAuth> {
+  const supabase = existingClient ?? (await createRouteHandlerSupabase(request));
+  const bearer = extractBearerToken(request);
+  const { data, error } = bearer
+    ? await supabase.auth.getUser(bearer)
+    : await supabase.auth.getUser();
+
+  if (error || !data.user) {
+    console.error(
+      "[AUTH] Route handler session validation failed:",
+      error?.message ?? "no user on session"
+    );
+    return { ok: false, authError: error?.message ?? null };
+  }
+
+  return { ok: true, supabase, user: data.user };
+}
+
 export async function resolveRouteHandlerUserId(
   request: Request,
   supabase: SupabaseClient
 ): Promise<string | null> {
-  const bearer = extractBearerToken(request);
-  if (bearer) {
-    const { data, error } = await supabase.auth.getUser(bearer);
-    if (error || !data.user?.id) {
-      console.error(
-        "[VAULT TRACE] Bearer session validation failed:",
-        error?.message ?? "no user on token"
-      );
-      return null;
-    }
-    return data.user.id;
-  }
-
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user?.id) {
-    console.error(
-      "[VAULT TRACE] Cookie session validation failed:",
-      error?.message ?? "no user in cookie session"
-    );
-    return null;
-  }
-
-  return data.user.id;
+  const auth = await authenticateRouteHandler(request, supabase);
+  return auth.ok ? auth.user.id : null;
 }

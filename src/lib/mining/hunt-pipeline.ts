@@ -1,12 +1,13 @@
 import { z } from "zod";
 
+import { resolveDailyDropQuota as resolveDailyDropQuotaForTier } from "@/lib/billing/tiers";
+import { fetchUserSubscriptionTier } from "@/lib/billing/user-billing";
 import {
   countQueuedDiscoveryLeads,
   discoveryUrlExistsForUser,
   executeDailyReleaseProtocol,
   getLeadBankStats,
   queueDiscoveryLead,
-  resolveDailyDropQuota,
 } from "@/lib/discovery/lead-bank";
 import { resolveAuthenticatedUserId } from "@/lib/onboard-pipeline";
 import type { Platform, ProductDNA } from "@/lib/signalflow-types";
@@ -705,7 +706,11 @@ export async function executeHuntLoop(userId: string): Promise<HuntResult> {
 
     activeQueries = [...dna.activeSerperQueries];
 
-    const dailyDropQuota = resolveDailyDropQuota(userId);
+    const subscriptionTier = await fetchUserSubscriptionTier(
+      supabaseServer,
+      userId
+    );
+    const dailyDropQuota = resolveDailyDropQuotaForTier(subscriptionTier);
     const queueThreshold = Math.ceil(dailyDropQuota * 1.5);
     const queuedCount = await countQueuedDiscoveryLeads(supabaseServer, userId);
     const skipSerperScrape = queuedCount >= queueThreshold;
@@ -841,7 +846,9 @@ export async function executeHuntLoop(userId: string): Promise<HuntResult> {
     );
     }
 
-    const release = await executeDailyReleaseProtocol(supabaseServer, userId);
+    const release = await executeDailyReleaseProtocol(supabaseServer, userId, {
+      dailyDropQuota,
+    });
     const bank = await getLeadBankStats(supabaseServer, userId);
 
     minerLog.success(

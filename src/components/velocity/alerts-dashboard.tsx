@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { IntentBadge, PlatformBadge } from "@/components/badges";
 import { LeadSheet } from "@/components/lead-sheet";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { getAuthHeaders } from "@/lib/api-auth";
 import { useSignalFlow } from "@/lib/signalflow-store";
@@ -373,19 +374,12 @@ export function AlertsDashboard() {
             ) : null}
 
             {!isScanning && alerts.length === 0 ? (
-              <div className="flex min-h-[280px] flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 px-6 py-12 text-center">
-                <Radio
-                  className="size-10 text-muted-foreground/60"
-                  aria-hidden
-                />
-                <p className="mt-4 text-sm font-medium text-foreground">
-                  Radar Idle
-                </p>
-                <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                  Run a scan to monitor simulated thread velocity against your
-                  product DNA.
-                </p>
-              </div>
+              <EmptyState
+                icon={Radio}
+                title="Radar is Scanning..."
+                description="We are calculating velocity on thousands of threads. Viral waves will appear here automatically."
+                className="min-h-[280px]"
+              />
             ) : (
               alerts.map((alert) => (
                 <AlertCard

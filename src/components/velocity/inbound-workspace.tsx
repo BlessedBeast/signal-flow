@@ -1,16 +1,18 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
   Copy,
   Inbox,
   Linkedin,
+  Sparkles,
   Twitter,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +40,54 @@ const POSTURE_OPTIONS: { value: InboundPosture; label: string }[] = [
   { value: "hype", label: "⚡ Hype Multiplier" },
   { value: "deflector", label: "🛡️ Hater Deflector" },
 ];
+
+const SAMPLE_NOTIFICATION_BLOCK =
+  "Replying to @developer_alpha: Great breakdown! But how do you handle tracking index errors when scaling databases locally without enterprise tools? Let me know if you have a workflow script for this.";
+
+const POSTURE_HELP: Record<InboundPosture, string> = {
+  plug: "Drafts a value-first response that smoothly anchors your Product DNA link into the conversation naturally.",
+  hype: "Creates high-energy, engaging text to keep your comment section buzzing and trick the algorithm for maximum virality.",
+  deflector:
+    "Crafts a calm, Bulletproof, elite response that neutralizes critical trolls and maintains brand authority.",
+};
+
+const WORKFLOW_STEPS = [
+  { id: 1, label: "CAPTURE FEED" },
+  { id: 2, label: "CONFIGURE POSTURE" },
+  { id: 3, label: "EXECUTE STREAM" },
+] as const;
+
+function WorkflowStepTracker({ activeStep }: { activeStep: 1 | 2 | 3 }) {
+  return (
+    <nav
+      aria-label="Replier workflow steps"
+      className="glass-strong flex flex-wrap items-center justify-center gap-2 rounded-xl border border-border/60 px-4 py-3 sm:gap-3"
+    >
+      {WORKFLOW_STEPS.map((step, index) => (
+        <span key={step.id} className="inline-flex items-center gap-2 sm:gap-3">
+          <span
+            className={cn(
+              "font-mono text-[10px] uppercase tracking-widest transition-colors",
+              activeStep >= step.id
+                ? "text-primary"
+                : "text-muted-foreground"
+            )}
+          >
+            {step.id}. {step.label}
+          </span>
+          {index < WORKFLOW_STEPS.length - 1 ? (
+            <span
+              className="font-mono text-[10px] text-muted-foreground/60"
+              aria-hidden
+            >
+              -&gt;
+            </span>
+          ) : null}
+        </span>
+      ))}
+    </nav>
+  );
+}
 
 function ReplyCard({
   index,
@@ -96,12 +146,14 @@ function SegmentedToggle<T extends string>({
   value,
   onChange,
   disabled,
+  footer,
 }: {
   label: string;
   options: { value: T; label: string; icon?: typeof Twitter }[];
   value: T;
   onChange: (value: T) => void;
   disabled?: boolean;
+  footer?: ReactNode;
 }) {
   return (
     <div className="space-y-2">
@@ -131,6 +183,7 @@ function SegmentedToggle<T extends string>({
           );
         })}
       </div>
+      {footer}
     </div>
   );
 }
@@ -142,6 +195,19 @@ export function InboundWorkspace() {
   const [replies, setReplies] = useState<ReplyDraft[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const activeWorkflowStep = useMemo((): 1 | 2 | 3 => {
+    if (replies.length > 0 || isProcessing) return 3;
+    if (originalThread.trim().length > 0) return 2;
+    return 1;
+  }, [isProcessing, originalThread, replies.length]);
+
+  const postureHelpText = POSTURE_HELP[posture];
+
+  const loadSampleBlock = useCallback(() => {
+    setOriginalThread(SAMPLE_NOTIFICATION_BLOCK);
+    toast.success("Sample notification block loaded");
+  }, []);
 
   const updateReply = useCallback((index: number, text: string) => {
     setReplies((prev) =>
@@ -226,6 +292,8 @@ export function InboundWorkspace() {
         </p>
       </div>
 
+      <WorkflowStepTracker activeStep={activeWorkflowStep} />
+
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <section className="rounded-xl glass p-6">
           <h2 className="font-semibold tracking-tight text-foreground">
@@ -250,10 +318,28 @@ export function InboundWorkspace() {
               value={posture}
               onChange={setPosture}
               disabled={isProcessing}
+              footer={
+                <p className="rounded-lg border border-border/50 bg-muted/25 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+                  {postureHelpText}
+                </p>
+              }
             />
 
             <div className="space-y-2">
-              <Label htmlFor="inbound-thread">Raw comment block</Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label htmlFor="inbound-thread">Raw comment block</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isProcessing}
+                  className="h-7 gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground hover:text-primary"
+                  onClick={loadSampleBlock}
+                >
+                  <Sparkles className="size-3 shrink-0" aria-hidden />
+                  ✨ Load Sample Block
+                </Button>
+              </div>
               <Textarea
                 id="inbound-thread"
                 value={originalThread}
@@ -298,16 +384,13 @@ export function InboundWorkspace() {
             ) : null}
 
             {replies.length === 0 && !isProcessing ? (
-              <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 px-6 py-12 text-center">
-                <Inbox className="size-10 text-muted-foreground/60" aria-hidden />
-                <p className="mt-4 text-sm font-medium text-foreground">
-                  No reply stream yet
-                </p>
-                <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                  Paste a thread on the left and generate to populate response
-                  cards here.
-                </p>
-              </div>
+              <EmptyState
+                icon={Inbox}
+                title="No reply stream yet"
+                description="Paste notifications on the left, pick a growth posture, then hit Generate Replies Stream to populate this terminal."
+                footnote="Step 3 unlocks after capture + posture are configured."
+                className="min-h-[320px]"
+              />
             ) : (
               <div className="space-y-4">
                 {replies.map((draft, index) => (
