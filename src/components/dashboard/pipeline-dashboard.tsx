@@ -14,6 +14,7 @@ import {
 
 import { IntentBadge, PlatformBadge, StatusBadge } from "@/components/badges";
 import { LeadSheet } from "@/components/lead-sheet";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -23,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { groupLeadsByReleaseDay } from "@/lib/leads/lead-ledger";
 import {
   getIntentTier,
   type Lead,
@@ -82,17 +84,18 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
 
   const metrics = useMemo(() => computeMetrics(leads), [leads]);
 
-  const sortedLeads = useMemo(
-    () =>
-      [...leads].sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ),
+  const ledgerBuckets = useMemo(
+    () => groupLeadsByReleaseDay(leads),
     [leads]
   );
 
+  const streamLeadCount = useMemo(
+    () => ledgerBuckets.reduce((sum, bucket) => sum + bucket.leads.length, 0),
+    [ledgerBuckets]
+  );
+
   const activeLead =
-    sortedLeads.find((l) => l.id === activeLeadId) ?? null;
+    leads.find((l) => l.id === activeLeadId) ?? null;
 
   function handleIngest(e: React.FormEvent) {
     e.preventDefault();
@@ -112,6 +115,7 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
         { role: "prospect", content, at: now },
       ],
       source_url: sourceUrl.trim() || `manual://${Date.now()}`,
+      released_at: now,
       created_at: now,
       author: "Manual ingest",
       subreddit:
@@ -265,54 +269,123 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
         </div>
       </Collapsible>
 
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Lead stream</h2>
-        {sortedLeads.length === 0 ? (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-sm font-semibold text-foreground">
+            Lead ledger
+          </h2>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            {streamLeadCount} in stream · grouped by daily drop
+          </p>
+        </div>
+
+        {streamLeadCount === 0 ? (
           <div className="glass-soft rounded-2xl px-6 py-12 text-center text-sm text-muted-foreground">
             No leads yet — ingest a thread above or run the miner.
           </div>
         ) : (
-          <ul className="space-y-2">
-            {sortedLeads.map((lead) => {
-              const isActive = lead.id === activeLeadId;
-              return (
-                <li key={lead.id}>
+          <div className="space-y-3">
+            {ledgerBuckets.map((bucket) => (
+              <Collapsible
+                key={bucket.key}
+                defaultOpen={bucket.key === "today"}
+                className="group glass-strong overflow-hidden rounded-2xl"
+              >
+                <CollapsibleTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => setActiveLeadId(lead.id)}
                     className={cn(
-                      "glass-soft w-full rounded-2xl px-4 py-4 text-left transition-all duration-150",
-                      "hover:ring-1 hover:ring-primary/20",
-                      isActive && "ring-2 ring-primary/30 bg-sidebar-accent/50"
+                      "flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors",
+                      "hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     )}
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <PlatformBadge platform={lead.platform} />
-                      <IntentBadge tier={getIntentTier(lead.intent_score)} />
-                      <StatusBadge status={lead.status} />
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(lead.created_at), {
-                          addSuffix: true,
-                        })}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ChevronDown
+                        className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+                        aria-hidden
+                      />
+                      <span className="truncate text-base font-semibold tracking-tight text-foreground">
+                        {bucket.label}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm font-medium text-foreground">
-                      {lead.author}
-                      {lead.subreddit ? (
-                        <span className="font-normal text-muted-foreground">
-                          {" "}
-                          · {lead.subreddit}
-                        </span>
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className="border-border/60 bg-muted/30 font-mono text-[10px] text-foreground"
+                      >
+                        {bucket.stats.total} lead
+                        {bucket.stats.total === 1 ? "" : "s"}
+                      </Badge>
+                      {bucket.stats.untouched > 0 ? (
+                        <Badge
+                          variant="outline"
+                          className="border-primary/25 bg-primary/10 font-mono text-[10px] text-foreground"
+                        >
+                          {bucket.stats.untouched} untouched
+                        </Badge>
                       ) : null}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                      {snippet(lead.content)}
-                    </p>
+                      {bucket.stats.ongoingFollowUps > 0 ? (
+                        <Badge
+                          variant="outline"
+                          className="border-border/60 font-mono text-[10px] text-muted-foreground"
+                        >
+                          {bucket.stats.ongoingFollowUps} ongoing follow-up
+                          {bucket.stats.ongoingFollowUps === 1 ? "" : "s"}
+                        </Badge>
+                      ) : null}
+                    </div>
                   </button>
-                </li>
-              );
-            })}
-          </ul>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <ul className="space-y-2 border-t border-border/50 px-3 pb-3 pt-2">
+                    {bucket.leads.map((lead) => {
+                      const isActive = lead.id === activeLeadId;
+                      return (
+                        <li key={lead.id}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveLeadId(lead.id)}
+                            className={cn(
+                              "glass-soft w-full rounded-xl px-4 py-4 text-left transition-all duration-150",
+                              "hover:ring-1 hover:ring-primary/20",
+                              isActive &&
+                                "ring-2 ring-primary/30 bg-sidebar-accent/50"
+                            )}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <PlatformBadge platform={lead.platform} />
+                              <IntentBadge
+                                tier={getIntentTier(lead.intent_score)}
+                              />
+                              <StatusBadge status={lead.status} />
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                {formatDistanceToNow(
+                                  new Date(lead.released_at),
+                                  { addSuffix: true }
+                                )}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm font-medium text-foreground">
+                              {lead.author}
+                              {lead.subreddit ? (
+                                <span className="font-normal text-muted-foreground">
+                                  {" "}
+                                  · {lead.subreddit}
+                                </span>
+                              ) : null}
+                            </p>
+                            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                              {snippet(lead.content)}
+                            </p>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+            ))}
+          </div>
         )}
       </div>
 

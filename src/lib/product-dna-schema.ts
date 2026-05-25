@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Platform, ProductDNA } from "@/lib/signalflow-types";
+import { DEFAULT_SERPER_QUERIES } from "@/lib/signalflow-types";
 
 const PLATFORMS = [
   "reddit",
@@ -45,12 +46,6 @@ function coercePlatforms(value: unknown): Platform[] {
   return [...out];
 }
 
-const DEFAULT_SERPER_QUERIES = [
-  'site:reddit.com "looking for alternative"',
-  'site:x.com "anyone recommend" tool',
-  'site:news.ycombinator.com "Ask HN" alternative',
-];
-
 /** Aligns client draft payloads with vault API expectations before POST. */
 export function normalizeVaultDnaPayload(dna: ProductDNA): ProductDNA {
   const serper = coerceStringArray(dna.activeSerperQueries);
@@ -82,7 +77,7 @@ function preprocessVaultDnaInput(raw: unknown): unknown {
     audience: input.audience ?? "",
     painPoints: input.painPoints ?? [],
     targetPlatforms: input.targetPlatforms ?? ["reddit", "x", "hackernews"],
-    activeSerperQueries: input.activeSerperQueries ?? DEFAULT_SERPER_QUERIES,
+    activeSerperQueries: input.activeSerperQueries ?? [...DEFAULT_SERPER_QUERIES],
     competitors: input.competitors ?? [],
     keywords: input.keywords ?? [],
   };

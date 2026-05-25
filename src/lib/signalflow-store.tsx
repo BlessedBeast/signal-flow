@@ -13,7 +13,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import { mapDbLeadToClient, type DbLeadRow } from "@/lib/leads/map-db-lead";
+import { DAILY_LIMIT } from "@/lib/discovery/constants";
 import { safeParseProductDna } from "@/lib/product-dna-schema";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import type {
@@ -34,12 +34,19 @@ export type {
   ProductDNA,
   Profile,
 } from "@/lib/signalflow-types";
-export { getIntentTier, initialDNA } from "@/lib/signalflow-types";
+export { getIntentTier, initialDNA, DEFAULT_SERPER_QUERIES } from "@/lib/signalflow-types";
+
+type LeadBankStats = {
+  queuedCount: number;
+  activeCount: number;
+  dailyLimit: number;
+};
 
 type SignalFlowContextValue = {
   leads: Lead[];
   dna: ProductDNA;
   profile: Profile;
+  leadBank: LeadBankStats;
   leadsLoading: boolean;
   profileLoading: boolean;
   addLead: (lead: Omit<Lead, "id"> & { id?: string }) => void;
@@ -119,8 +126,15 @@ function applyProfileRow(
   });
 }
 
+const EMPTY_LEAD_BANK: LeadBankStats = {
+  queuedCount: 0,
+  activeCount: 0,
+  dailyLimit: DAILY_LIMIT,
+};
+
 export function SignalFlowProvider({ children }: { children: ReactNode }) {
   const [leads, setLeadsState] = useState<Lead[]>([]);
+  const [leadBank, setLeadBankState] = useState<LeadBankStats>(EMPTY_LEAD_BANK);
   const [dna, setDnaState] = useState<ProductDNA>(initialDNA);
   const [profile, setProfileState] = useState<Profile>(EMPTY_PROFILE);
   const [leadsLoading, setLeadsLoading] = useState(false);
@@ -158,34 +172,44 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshLeads = useCallback(async (): Promise<boolean> => {
+    const supabase = createBrowserSupabase();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      return false;
+    }
+
     setLeadsLoading(true);
     try {
-      const supabase = createBrowserSupabase();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const res = await fetch("/api/leads", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-      if (!session) {
-        setLeadsState([]);
-        setProfileState(EMPTY_PROFILE);
-        setDnaState(initialDNA);
+      const body = (await res.json()) as {
+        ok?: boolean;
+        leads?: Lead[];
+        bank?: LeadBankStats;
+        error?: string;
+      };
+
+      if (!res.ok || !body.ok || !body.leads || !body.bank) {
+        console.error(
+          "[store] refreshLeads:",
+          body.error ?? res.statusText
+        );
         return false;
       }
 
-      const { data, error } = await supabase
-        .from("leads")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("[store] refreshLeads:", error.message);
-        return false;
-      }
-
-      const mapped = (data ?? []).map((row) =>
-        mapDbLeadToClient(row as DbLeadRow)
-      );
-      setLeadsState(mapped);
+      setLeadsState(body.leads);
+      setLeadBankState(body.bank);
       return true;
     } catch (err) {
       console.error("[store] refreshLeads:", err);
@@ -336,6 +360,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
         userIdRef.current = null;
         teardownRealtime();
         setLeadsState([]);
+        setLeadBankState(EMPTY_LEAD_BANK);
         setProfileState(EMPTY_PROFILE);
         setDnaState(initialDNA);
         return;
@@ -360,6 +385,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
         userIdRef.current = null;
         teardownRealtime();
         setLeadsState([]);
+        setLeadBankState(EMPTY_LEAD_BANK);
         setProfileState(EMPTY_PROFILE);
         setDnaState(initialDNA);
       }
@@ -376,6 +402,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
       leads,
       dna,
       profile,
+      leadBank,
       leadsLoading,
       profileLoading,
       addLead,
@@ -391,6 +418,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
       leads,
       dna,
       profile,
+      leadBank,
       leadsLoading,
       profileLoading,
       addLead,

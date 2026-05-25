@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 
-import { SignalFlowProvider } from "@/lib/signalflow-store";
+import { AppProviders } from "@/components/app-providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,7 +31,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
         suppressHydrationWarning={true} // ◄ Add this line to mute extension alerts
       >
-        <SignalFlowProvider>{children}</SignalFlowProvider>
+        <AppProviders>
+          {children}
+          <Toaster richColors closeButton position="top-center" />
+        </AppProviders>
       </body>
     </html>
   );

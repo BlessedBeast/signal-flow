@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Platform, ProductDNA } from "@/lib/signalflow-types";
+import { DEFAULT_SERPER_QUERIES } from "@/lib/signalflow-types";
 import { supabaseServer } from "@/lib/supabase-server";
 
 export { parseClientProductDna } from "@/lib/product-dna-schema";
@@ -280,16 +281,21 @@ You must identify DIRECT, scale-matched competitors. Infer the product's true sc
 - Each entry must be a real product/company name (not a category label). Return 3-6 names.
 
 SERPER QUERIES (activeSerperQueries array):
-You must act as an expert boolean search architect. The goal is to find high-intent Reddit, Hacker News, and X threads where users are complaining about, asking for help with, or actively seeking solutions to problems this product solves.
-- Return EXACTLY 5 distinct dorks. Each must be production-ready for Google/Serper (site: operators, quoted phrases, boolean logic).
-- Prioritize complaint and buying-intent language: "struggling with", "looking for alternative", "anyone recommend", "how do you", "frustrated with", "Ask HN", "what tool", etc.—tied to this product's painPoints and category.
-- CRITICAL — negative keywords: You MUST append filters to eliminate false positives. When the product is B2B/SaaS, business analytics, validation, research, or strategy tooling, append disambiguators such as -trading -crypto -forex -stocks -betting -gambling -sportsbook unless the product is explicitly in those verticals.
-- Add additional negatives when domain overlap is likely (e.g. -NFT -memecoin for "validation" tools; -recipe -cooking for unrelated "stack" terms). Tailor negatives to this product's most ambiguous keywords.
-- Distribute across surfaces: include Reddit (site:reddit.com or site:reddit.com/r/<relevant sub>), Hacker News (site:news.ycombinator.com), and X (site:x.com or site:twitter.com). At least one query per major platform where targetPlatforms includes it.
-- Format examples (adapt to this product; do not copy verbatim unless relevant):
-  site:reddit.com/r/SaaS "validate my idea" -crypto -trading -forex
-  site:news.ycombinator.com "market research tool" -trading -stocks
-  site:x.com "anyone recommend" "<category problem>" -crypto -forex
+You must act as an expert boolean search architect. The goal is to find high-intent Reddit, Hacker News, X, and Product Hunt threads where users are complaining about, asking for help with, or actively seeking solutions to problems this product solves.
+- Return EXACTLY 5 distinct dorks. Each must be production-ready for Google/Serper.
+- NEVER wrap phrases in double quotes. Do not output rigid exact-match strings inside quotation marks.
+- ALWAYS use high-volume proximity syntax: parenthetical OR clusters for synonyms and intent vectors, e.g. (validate OR validation) (idea OR business OR startup).
+- Combine site: operators, (synonym1 OR synonym2) groupings, problem/intent tokens, and mandatory negative keywords.
+- Prioritize complaint and buying-intent language via OR groups: (struggling OR frustrated OR nightmare), (alternative OR competitor), (recommend OR tool), (validation OR research)—tied to this product's painPoints and category.
+- CRITICAL — negative keywords: append filters to eliminate false positives. For B2B/SaaS, validation, research, or strategy tooling, append -trading -crypto -forex -stocks -betting -gambling -sportsbook unless the product is explicitly in those verticals.
+- Add additional negatives when domain overlap is likely (e.g. -NFT -memecoin for validation tools). Tailor negatives to this product's most ambiguous keywords.
+- Distribute across surfaces: Reddit (site:reddit.com or site:reddit.com/r/<sub>), Hacker News (site:news.ycombinator.com), X (site:x.com), Product Hunt (site:producthunt.com/discussions). At least one query per major platform in targetPlatforms.
+- Format examples (adapt to this product; use OR clusters, never quoted phrases):
+  site:reddit.com (validate OR validation) (idea OR business OR startup) -crypto -trading -forex
+  site:reddit.com/r/SaaS (alternative OR competitor) (validation OR research) -trading -crypto
+  site:news.ycombinator.com (alternative OR validation OR feedback) (tool OR project OR product) -stocks -trading
+  site:x.com (validation OR market) (struggling OR nightmare OR hard) -crypto -forex
+  site:producthunt.com/discussions (recommend OR tool) (validation OR feasibility) -trading
 - Make every dork hyper-specific to this product's category and pains—not generic marketing queries.
 
 keywords array:
@@ -323,17 +329,19 @@ function normalizePlatforms(raw: string[]): Platform[] {
   return [...out];
 }
 
+function stripExactMatchQuotes(query: string): string {
+  return query
+    .replace(/"([^"]+)"/g, "($1)")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalizeSerperQueries(queries: string[]): string[] {
-  const cleaned = queries.map((q) => q.trim()).filter(Boolean);
+  const cleaned = queries
+    .map((q) => stripExactMatchQuotes(q.trim()))
+    .filter(Boolean);
   if (cleaned.length >= 5) return cleaned.slice(0, 5);
-  const defaults = [
-    'site:reddit.com "looking for alternative"',
-    'site:x.com "anyone recommend" tool',
-    'site:news.ycombinator.com "Ask HN" alternative',
-    'site:reddit.com "best tool for"',
-    'site:x.com "struggling with"',
-  ];
-  return [...cleaned, ...defaults].slice(0, 5);
+  return [...cleaned, ...DEFAULT_SERPER_QUERIES].slice(0, 5);
 }
 
 export function mapAiJsonToProductDNA(

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DISCOVERY_LEADS_TABLE } from "@/lib/discovery/lead-bank";
 import { resolveAuthenticatedUserId } from "@/lib/onboard-pipeline";
 import { safeParseProductDna } from "@/lib/product-dna-schema";
 import type {
@@ -19,7 +20,6 @@ import {
   buildConversationalDepthBlock,
   buildPlatformComplianceBlock,
   buildSourceCommunityContext,
-  type SourceCommunityContext,
 } from "./source-context";
 
 const OPENAI_MODEL = "gpt-4o";
@@ -90,6 +90,7 @@ type LeadRow = {
   content: string;
   platform: string | null;
   source_url: string | null;
+  url: string | null;
   conversation_history: unknown;
   ai_draft_content: string | null;
 };
@@ -99,7 +100,7 @@ async function fetchLeadForUser(
   userId: string
 ): Promise<LeadRow> {
   const { data, error } = await supabaseServer
-    .from("leads")
+    .from(DISCOVERY_LEADS_TABLE)
     .select(
       "id, user_id, content, platform, source_url, conversation_history, ai_draft_content"
     )
@@ -295,6 +296,8 @@ export async function generateRoughEdgesReply(params: {
   const systemPrompt = `OPERATOR PERSONA (mandatory — match this voice exactly):
 ${persona}${battlecardBlock}
 
+ACTIVE PLATFORM: ${communityCtx.platform}
+
 ${buildAntiAiDetectionToneBlock()}
 
 ${complianceBlock}
@@ -393,7 +396,7 @@ async function persistReplyUpdate(params: {
   aiDraftContent: string;
 }): Promise<void> {
   const { error } = await supabaseServer
-    .from("leads")
+    .from(DISCOVERY_LEADS_TABLE)
     .update({
       conversation_history: params.conversationHistory,
       ai_draft_content: params.aiDraftContent,
@@ -425,20 +428,20 @@ export async function executeReplyGeneration(
   console.log("[REPLY TRACE] Lead record loaded:", {
     id: lead.id,
     platform: lead.platform,
-    source_url: lead.source_url,
+    source_url: lead.source_url ?? lead.url,
     contentLength: lead.content.length,
     historyTurns: parseConversationHistory(lead.conversation_history).length,
     hasExistingDraft: Boolean(lead.ai_draft_content?.trim()),
   });
   console.log(
     "[REPLY TRACE] Target community / source URL:",
-    lead.source_url ?? "(none)"
+    lead.source_url ?? lead.url ?? "(none)"
   );
 
   const { personaContext, battlecards } =
     await fetchOperatorProfileContext(userId);
 
-  const sourceUrl = lead.source_url?.trim() ?? "";
+  const sourceUrl = lead.source_url?.trim() ?? lead.url?.trim() ?? "";
 
   const scanSources = [lead.content];
   if (prospectResponse) {

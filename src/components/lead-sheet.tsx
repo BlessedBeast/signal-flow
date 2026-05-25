@@ -261,47 +261,57 @@ export function LeadSheet({
     if (!lead || !followUpInput.trim()) return;
 
     setGenerating(true);
+    toast.info("Generating follow-up…");
+
     try {
       const headers = await getAuthHeaders();
       if (!headers.Authorization) {
-        toast.error("Sign in to generate replies.");
+        toast.error("Sign in to generate follow-ups.");
         return;
       }
 
-      const res = await fetch("/api/leads/reply", {
+      const res = await fetch("/api/velocity/follow-up", {
         method: "POST",
         headers,
         body: JSON.stringify({
           leadId: lead.id,
-          prospectResponse: followUpInput.trim(),
+          followInput: followUpInput.trim(),
         }),
       });
 
       const json = (await res.json()) as {
         ok?: boolean;
-        reply?: string;
+        suggestedReply?: string;
         conversation_history?: Lead["conversation_history"];
         ai_draft_content?: string;
         error?: string;
+        step?: string;
       };
 
-      if (!res.ok || !json.ok || !json.reply) {
-        toast.error(json.error ?? "Reply generation failed");
+      if (json.step === "onboarding-required") {
+        toast.error(
+          json.error ?? "Product DNA required — complete onboarding first."
+        );
         return;
       }
 
-      setDraftText(json.reply);
+      if (!res.ok || !json.ok || !json.suggestedReply) {
+        toast.error(json.error ?? "Follow-up generation failed");
+        return;
+      }
+
+      setDraftText(json.suggestedReply);
       setFollowUpInput("");
       onUpdateLead(lead.id, {
         conversation_history:
           json.conversation_history ?? lead.conversation_history,
-        ai_draft_content: json.ai_draft_content ?? json.reply,
+        ai_draft_content: json.ai_draft_content ?? json.suggestedReply,
         status: "drafted",
       });
-      toast.success("Follow-up draft ready");
+      toast.success("Follow-up draft ready — review and copy when it fits");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Reply generation failed";
+        err instanceof Error ? err.message : "Follow-up generation failed";
       toast.error(message);
     } finally {
       setGenerating(false);
@@ -368,11 +378,11 @@ export function LeadSheet({
     }
   }
 
-  const rawSourceUrl = lead?.source_url?.trim() ?? "";
-  const safeUrl = rawSourceUrl
-    ? rawSourceUrl.startsWith("http")
-      ? rawSourceUrl
-      : `https://${rawSourceUrl}`
+  const rawThreadUrl = lead?.url?.trim() || lead?.source_url?.trim() || "";
+  const safeUrl = rawThreadUrl
+    ? rawThreadUrl.startsWith("http")
+      ? rawThreadUrl
+      : `https://${rawThreadUrl}`
     : "";
   const canOpenThread = Boolean(safeUrl);
   const showDraftEditor =
@@ -530,12 +540,23 @@ export function LeadSheet({
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                     AI reply template
                   </Label>
                   {showDraftEditor ? (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {canOpenThread ? (
+                        <a
+                          href={safeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 font-mono text-xs text-primary transition-colors hover:underline"
+                        >
+                          <span>View Original Thread</span>
+                          <ExternalLink className="size-3 shrink-0" aria-hidden />
+                        </a>
+                      ) : null}
                       <Button
                         type="button"
                         variant="outline"
@@ -652,7 +673,7 @@ export function LeadSheet({
                 onChange={(e) => setFollowUpInput(e.target.value)}
                 placeholder="Paste their latest reply here…"
                 className="min-h-[80px] resize-none glass-soft"
-                disabled={isDraftGenerating}
+                disabled={generating || isDraftGenerating}
               />
               <Button
                 type="button"
@@ -667,7 +688,7 @@ export function LeadSheet({
                 ) : (
                   <Sparkles className="size-4" aria-hidden />
                 )}
-                Generate smart follow-up
+                {generating ? "Generating follow-up…" : "Generate smart follow-up"}
               </Button>
             </div>
           </>

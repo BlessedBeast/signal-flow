@@ -1,16 +1,35 @@
-export type BipOptionType = "data-drop" | "raw-build" | "competitor-flank";
+export const BIP_POST_TYPES = [
+  "milestone",
+  "friction",
+  "insight",
+  "ship",
+] as const;
 
-export type BipPostOption = {
-  type: BipOptionType;
-  label: string;
-  text: string;
+export type BipPostType = (typeof BIP_POST_TYPES)[number];
+
+export type BipLedgerEntry = {
+  id: string;
+  post_type: BipPostType;
+  post_content: string;
+  current_focus: string | null;
+  created_at: string;
 };
 
 export type BipGenerateResult = {
   ok: true;
-  options: BipPostOption[];
-  meta: {
-    activeLeadCount: number;
-    generatedAt: string;
-  };
+  postContent: string;
+  postType: BipPostType;
+  entry: BipLedgerEntry;
+};
+
+export type BipLedgerListResult = {
+  ok: true;
+  posts: BipLedgerEntry[];
+};
+
+export const BIP_POST_TYPE_LABELS: Record<BipPostType, string> = {
+  milestone: "Milestone",
+  friction: "Friction",
+  insight: "Insight",
+  ship: "Ship",
 };

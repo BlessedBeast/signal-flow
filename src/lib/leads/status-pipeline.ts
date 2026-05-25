@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DISCOVERY_LEADS_TABLE } from "@/lib/discovery/lead-bank";
 import { resolveAuthenticatedUserId } from "@/lib/onboard-pipeline";
 import type { LeadStatus } from "@/lib/signalflow-types";
 import { supabaseServer } from "@/lib/supabase-server";
@@ -49,7 +50,7 @@ export async function updateLeadStatus(
   status: "replied" | "archived"
 ): Promise<StatusResult> {
   const { data, error } = await supabaseServer
-    .from("leads")
+    .from(DISCOVERY_LEADS_TABLE)
     .update({ status })
     .eq("id", leadId)
     .eq("user_id", userId)

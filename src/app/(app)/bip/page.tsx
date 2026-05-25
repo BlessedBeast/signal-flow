@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { BipWorkspace } from "@/components/bip/bip-workspace";
-
-export default function BipPage() {
-  return <BipWorkspace />;
+export default function LegacyBipPage() {
+  redirect("/velocity/bip");
 }

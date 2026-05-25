@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DISCOVERY_LEADS_TABLE } from "@/lib/discovery/lead-bank";
 import type { ConversationTurn, Platform } from "@/lib/signalflow-types";
 import { supabaseServer } from "@/lib/supabase-server";
 
@@ -117,6 +118,7 @@ type LeadForConversion = {
   user_id: string;
   platform: string | null;
   source_url: string | null;
+  url: string | null;
   content: string;
   conversation_history: unknown;
   ai_draft_content: string | null;
@@ -127,7 +129,7 @@ async function fetchLeadForConversion(
   userId: string
 ): Promise<LeadForConversion> {
   const { data, error } = await supabaseServer
-    .from("leads")
+    .from(DISCOVERY_LEADS_TABLE)
     .select(
       "id, user_id, platform, source_url, content, conversation_history, ai_draft_content"
     )
@@ -150,7 +152,7 @@ export async function executeConversionOutcome(
   outcome: "won" | "lost"
 ): Promise<{ ok: true; leadId: string; status: string; flywheelSaved: boolean }> {
   const lead = await fetchLeadForConversion(leadId, userId);
-  const sourceUrl = lead.source_url?.trim() ?? "";
+  const sourceUrl = lead.source_url?.trim() ?? lead.url?.trim() ?? "";
   const platform = normalizePlatform(lead.platform, sourceUrl);
   const subreddit = extractSubredditFromUrl(sourceUrl);
   let history = parseHistory(lead.conversation_history);
@@ -196,7 +198,7 @@ export async function executeConversionOutcome(
   }
 
   const { error: archiveError } = await supabaseServer
-    .from("leads")
+    .from(DISCOVERY_LEADS_TABLE)
     .update({ status: "archived" })
     .eq("id", leadId)
     .eq("user_id", userId);

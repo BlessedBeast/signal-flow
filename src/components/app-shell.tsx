@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Crosshair,
-  Dna,
-  LayoutDashboard,
+  Activity,
+  Box,
+  Database,
+  Flame,
   LogOut,
-  Megaphone,
+  MessageSquare,
+  Sparkles,
+  UserRound,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -18,12 +21,69 @@ import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { useSignalFlow } from "@/lib/signalflow-store";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
-  { href: "/bip", label: "Build In Public Workspace", icon: Megaphone },
-  { href: "/competitors", label: "Discovery", icon: Crosshair },
-  { href: "/onboarding", label: "Product DNA", icon: Dna },
+type NavLink = { href: string; label: string; icon: LucideIcon };
+
+type NavCategory = {
+  header: string;
+  links: NavLink[];
+};
+
+const NAV_CATEGORIES: NavCategory[] = [
+  {
+    header: "📡 Discovery Stream",
+    links: [
+      { href: "/stream/dashboard", label: "Active Leads", icon: Activity },
+      { href: "/stream/vault", label: "Product DNA Vault", icon: Database },
+    ],
+  },
+  {
+    header: "⚡ Velocity Hub",
+    links: [
+      { href: "/velocity/inbound", label: "1-Click Replier", icon: Zap },
+      { href: "/velocity/bip", label: "Build In Public", icon: MessageSquare },
+      { href: "/velocity/alerts", label: "Plug Alerts", icon: Flame },
+    ],
+  },
+  {
+    header: "🧪 Growth Labs",
+    links: [
+      { href: "/labs/geo-seeds", label: "GEO Seed Engine", icon: Sparkles },
+      { href: "/labs/side-cars", label: "Side-Car Factory", icon: Box },
+    ],
+  },
 ];
+
+const PROFILE_LINK: NavLink = {
+  href: "/profile",
+  label: "Profile & Billing",
+  icon: UserRound,
+};
+
+function isNavActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function NavItem({
+  href,
+  label,
+  icon: Icon,
+  isActive,
+}: NavLink & { isActive: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+        isActive
+          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+      )}
+    >
+      <Icon className="size-4 shrink-0" aria-hidden />
+      {label}
+    </Link>
+  );
+}
 
 function AppShellSidebar() {
   const pathname = usePathname();
@@ -41,61 +101,51 @@ function AppShellSidebar() {
         console.error("[app-shell] signOut:", error.message);
         return;
       }
-      router.push("/");
+      router.push("/login");
       router.refresh();
     } finally {
       setSigningOut(false);
     }
   }
 
+  const profileActive = isNavActive(pathname, PROFILE_LINK.href);
+
   return (
-    <aside
-      className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen w-56 flex-col",
-        "border-r border-sidebar-border glass-strong"
-      )}
-    >
-      <div className="flex items-center gap-2.5 px-4 py-5">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-60 flex-col border-r border-sidebar-border glass-panel text-sidebar-foreground md:flex">
+      <div className="flex items-center gap-2.5 border-b border-sidebar-border px-4 py-5">
         <div className="flex size-7 items-center justify-center rounded-lg bg-primary shadow-sm">
-          <Zap
-            size={14}
-            className="text-primary-foreground"
-            aria-hidden
-          />
+          <Zap size={14} className="text-primary-foreground" aria-hidden />
         </div>
         <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
           SignalFlow
         </span>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href;
-
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
-              )}
-            >
-              <Icon className="size-4 shrink-0" aria-hidden />
-              {label}
-            </Link>
-          );
-        })}
+      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4">
+        {NAV_CATEGORIES.map((category) => (
+          <div key={category.header} className="space-y-1">
+            <p className="px-3 pb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+              {category.header}
+            </p>
+            {category.links.map((link) => (
+              <NavItem
+                key={link.href}
+                {...link}
+                isActive={isNavActive(pathname, link.href)}
+              />
+            ))}
+          </div>
+        ))}
       </nav>
 
-      <div className="border-t border-sidebar-border px-4 py-4 space-y-3">
+      <div className="space-y-3 border-t border-sidebar-border px-3 py-4">
+        <NavItem {...PROFILE_LINK} isActive={profileActive} />
+
         <div>
-          <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+          <p className="px-3 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
             Miner status
           </p>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2 px-3">
             {profile.is_mining ? (
               <>
                 <span className="pulse-dot" aria-hidden />
@@ -123,7 +173,7 @@ function AppShellSidebar() {
           onClick={() => void handleSignOut()}
           className={cn(
             "glass-soft flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors",
-            "hover:bg-sidebar-accent/70 hover:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-50"
+            "hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50"
           )}
         >
           <span>Sign Out</span>
@@ -138,7 +188,7 @@ function AppShellFrame({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       <AppShellSidebar />
-      <main className="ml-56 min-h-screen flex-1 overflow-y-auto">
+      <main className="min-h-screen flex-1 overflow-y-auto md:ml-60">
         <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
       </main>
     </div>

@@ -333,7 +333,7 @@ export default function OnboardingPage() {
       setProfile({ product_dna: vaultDna, is_mining: false });
       await refreshProfile();
       toast.success("Product DNA secured. Vault initialized.");
-      router.push("/dashboard");
+      router.push("/stream/dashboard");
     } catch {
       toast.error("Failed to secure vault workspace configuration.");
     } finally {
@@ -352,7 +352,7 @@ export default function OnboardingPage() {
             SignalFlow
           </Link>
           <Link
-            href="/dashboard"
+            href="/stream/dashboard"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
             Skip to pipeline
@@ -767,7 +767,7 @@ export default function OnboardingPage() {
                   value={queryInput}
                   onChange={(e) => setQueryInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addQueryChip())}
-                  placeholder='site:reddit.com "looking for"'
+                  placeholder="site:reddit.com (validate OR validation) (startup OR idea)"
                   className="glass-soft h-9 font-mono text-xs"
                 />
                 <Button

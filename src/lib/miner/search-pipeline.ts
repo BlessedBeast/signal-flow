@@ -2,12 +2,25 @@ import type { Platform } from "@/lib/signalflow-types";
 
 export const SERPER_RESULTS_PER_QUERY = 10;
 
+export type SerperTimeRange = "week" | "month";
+
+export type SerperFetchOptions = {
+  timeRange?: SerperTimeRange;
+  /** When false, skip stale-year snippet filtering (historical pass). */
+  filterStaleYears?: boolean;
+};
+
 export type SerperCandidate = {
   link: string;
   title: string;
   snippet: string;
   platform: Platform;
   query: string;
+};
+
+const SERPER_TBS: Record<SerperTimeRange, string> = {
+  week: "qdr:w",
+  month: "qdr:m",
 };
 
 /** Assign platform from result URL; defaults to reddit for unknown hosts. */
@@ -46,11 +59,17 @@ export function snippetContainsStaleYear(text: string): boolean {
   return /\b2022\b|\b2023\b|\b2024\b/.test(text);
 }
 
-export async function fetchSerperQuery(query: string): Promise<SerperCandidate[]> {
+export async function fetchSerperQuery(
+  query: string,
+  options?: SerperFetchOptions
+): Promise<SerperCandidate[]> {
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) {
     throw new Error("SERPER_API_KEY is not configured");
   }
+
+  const timeRange = options?.timeRange ?? "week";
+  const filterStaleYears = options?.filterStaleYears ?? true;
 
   let response: Response;
   try {
@@ -63,7 +82,7 @@ export async function fetchSerperQuery(query: string): Promise<SerperCandidate[]
       body: JSON.stringify({
         q: query,
         num: SERPER_RESULTS_PER_QUERY,
-        tbs: "qdr:m",
+        tbs: SERPER_TBS[timeRange],
       }),
       signal: AbortSignal.timeout(30_000),
     });
@@ -92,7 +111,7 @@ export async function fetchSerperQuery(query: string): Promise<SerperCandidate[]
     const snippet = item.snippet?.trim() || "";
     const combinedText = `${title} ${snippet}`;
 
-    if (snippetContainsStaleYear(combinedText)) {
+    if (filterStaleYears && snippetContainsStaleYear(combinedText)) {
       continue;
     }
 
@@ -110,11 +129,12 @@ export async function fetchSerperQuery(query: string): Promise<SerperCandidate[]
 }
 
 export async function fetchAllSerperCandidates(
-  queries: string[]
+  queries: string[],
+  options?: SerperFetchOptions
 ): Promise<SerperCandidate[]> {
   const batch = queries.slice(0, 5);
   const settled = await Promise.allSettled(
-    batch.map((q) => fetchSerperQuery(q))
+    batch.map((q) => fetchSerperQuery(q, options))
   );
 
   const merged: SerperCandidate[] = [];

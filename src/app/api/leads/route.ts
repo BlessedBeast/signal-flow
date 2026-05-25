@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+import {
+  DISCOVERY_LEADS_TABLE,
+  getLeadBankStats,
+} from "@/lib/discovery/lead-bank";
 import { mapDbLeadToClient, type DbLeadRow } from "@/lib/leads/map-db-lead";
 import { resolveAuthenticatedUserId } from "@/lib/onboard-pipeline";
 import { supabaseServer } from "@/lib/supabase-server";
@@ -18,12 +22,14 @@ export async function GET(request: Request) {
     }
 
     const { data, error } = await supabaseServer
-      .from("leads")
+      .from(DISCOVERY_LEADS_TABLE)
       .select(
-        "id, user_id, platform, source_url, content, intent_score, status, ai_draft_content, conversation_history, created_at"
+        "id, user_id, platform, source_url, content, intent_score, status, ai_draft_content, conversation_history, created_at, released_at"
       )
       .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .in("status", ["active", "drafted", "replied"])
+      .order("released_at", { ascending: false })
+      .order("intent_score", { ascending: false });
 
     if (error) {
       return NextResponse.json(
@@ -32,11 +38,19 @@ export async function GET(request: Request) {
       );
     }
 
-    const leads = (data ?? []).map((row) =>
-      mapDbLeadToClient(row as DbLeadRow)
-    );
+    const formattedRows = (data ?? []).map((lead) => ({
+      ...lead,
+      url: lead.source_url,
+    }));
 
-    return NextResponse.json({ ok: true, leads }, { status: 200 });
+    const leads = formattedRows.map((row) => {
+      const clientLead = mapDbLeadToClient(row as DbLeadRow);
+      return { ...clientLead, url: clientLead.source_url };
+    });
+
+    const bank = await getLeadBankStats(supabaseServer, userId);
+
+    return NextResponse.json({ ok: true, leads, bank }, { status: 200 });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load leads";

@@ -3,51 +3,37 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Crosshair,
-  Loader2,
-  MessageSquare,
-  Sparkles,
-  Target,
-  Zap,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Loader2, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
-import { cn } from "@/lib/utils";
 
-const FEATURES = [
+const MODULES = [
   {
-    icon: Target,
-    title: "Intent scoring",
+    tier: "Discovery Stream",
+    emoji: "📡",
+    title: "Discovery Stream",
     description:
-      "Rank every thread by buying signal so you reply to HOT leads first.",
+      "Scans 4 platforms for un-archived, high-intent user threads.",
   },
   {
-    icon: Crosshair,
-    title: "Multi-platform mining",
+    tier: "Velocity Hub",
+    emoji: "⚡",
+    title: "Inbound Reply Hub",
     description:
-      "Monitor Reddit, X, and Hacker News with Serper-powered discovery dorks.",
+      "Instantly clears X/LinkedIn comments with 1-click casual, human-sounding postures.",
   },
   {
-    icon: MessageSquare,
-    title: "Context-aware drafts",
+    tier: "Growth Labs",
+    emoji: "🧪",
+    title: "Growth Labs",
     description:
-      "Generate human, founder-voice replies grounded in your Product DNA.",
+      "Synthesizes RAG-optimized GEO seeds and drops downloadable single-file side-car magnets for Lovable.dev.",
   },
 ] as const;
 
-type AuthMode = "signin" | "signup";
-
 export default function HomePage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState<AuthMode>("signin");
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
@@ -61,7 +47,7 @@ export default function HomePage() {
         } = await supabase.auth.getSession();
 
         if (!cancelled && session) {
-          router.replace("/dashboard");
+          router.replace("/stream/dashboard");
         }
       } catch {
         /* env missing — stay on homepage */
@@ -77,64 +63,9 @@ export default function HomePage() {
     };
   }, [router]);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      toast.error("Enter your email and password.");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const supabase = createBrowserSupabase();
-
-      if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: trimmedEmail,
-          password,
-        });
-
-        if (error) throw error;
-
-        toast.success("Signed in successfully");
-        router.push("/dashboard");
-        return;
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.session) {
-        toast.success("Account created — welcome to SignalFlow");
-        router.push("/onboarding");
-      } else {
-        toast.success("Account created. Check your email if confirmation is required.");
-        router.push("/onboarding");
-      }
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Authentication failed";
-      setPassword("");
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  function toggleMode() {
-    setMode((m) => (m === "signin" ? "signup" : "signin"));
-    setPassword("");
-  }
-
   if (checkingSession) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2
           className="size-8 animate-spin text-primary"
           aria-label="Checking session"
@@ -144,9 +75,9 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-50 border-0 bg-transparent">
-        <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 glass-panel">
+        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
           <Link
             href="/"
             className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-foreground"
@@ -156,171 +87,115 @@ export default function HomePage() {
             </span>
             SignalFlow
           </Link>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
             <Link
-              href="#features"
+              href="/login"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              Features
+              Log in
             </Link>
-            <Link
-              href="/onboarding"
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Product DNA
-            </Link>
-            <Button asChild size="sm" variant="outline" className="glass-soft">
-              <Link href="/dashboard">Pipeline</Link>
+            <Button asChild size="sm">
+              <Link href="/signup">Sign up</Link>
             </Button>
           </div>
         </nav>
       </header>
 
-      <section className="mx-auto grid max-w-6xl gap-12 px-6 py-16 lg:grid-cols-2 lg:items-center lg:py-24">
-        <div className="relative min-h-[320px]">
+      <main>
+        <section className="relative overflow-hidden px-6 py-20 sm:py-28">
           <div
-            className="pointer-events-none absolute inset-0 rounded-3xl grid-bg opacity-30"
+            className="pointer-events-none absolute inset-0 grid-bg opacity-40 [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]"
             aria-hidden
           />
-          <div className="relative z-10 space-y-6">
-            <p className="inline-flex items-center gap-2 rounded-full glass-soft px-3 py-1 text-xs font-medium text-muted-foreground">
-              <Sparkles className="size-3.5 text-primary" aria-hidden />
-              Lead-gen intelligence for indie SaaS
+          <div className="relative z-10 mx-auto max-w-4xl text-center">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              Manifesto · Vibe-coder distribution stack
             </p>
-            <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              Find buyers already talking about your category.
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-balance text-foreground sm:text-5xl lg:text-6xl">
+              Ship in peace. We&apos;ll handle the distribution.
             </h1>
-            <p className="max-w-lg text-lg text-muted-foreground leading-relaxed">
-              SignalFlow surfaces high-intent conversations, scores them HOT to
-              COLD, and drafts replies that sound like a helpful founder—not a
-              sales bot.
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              The automated organic velocity engine for solo builders. Monitor
+              Reddit, Hacker News, X, and Indie Hackers for high-intent buyers
+              in real-time. Bypass AI scanners. Generate GEO seeds. Turn your
+              codebase into cash.
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
               <Button asChild size="lg">
-                <Link href="/onboarding">Start free scan</Link>
+                <Link href="/signup">Start building in public</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="glass-soft">
-                <Link href="/dashboard">View pipeline</Link>
+                <Link href="/login">Sign in</Link>
               </Button>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="glass-strong rounded-2xl p-6 shadow-lg sm:p-8">
-          <div className="space-y-1">
-            <h2 className="text-xl font-semibold tracking-tight text-foreground">
-              {mode === "signin" ? "Welcome back" : "Create your account"}
+        <section className="border-t border-border/40 px-6 py-16">
+          <div className="mx-auto max-w-3xl">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              The old way vs. the builder way
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              You didn&apos;t learn to code so you could become a marketer.
             </h2>
-            <p className="text-sm text-muted-foreground">
-              {mode === "signin"
-                ? "Sign in to open your bounty board and run the lead miner."
-                : "Sign up to map your Product DNA and start hunting intent signals."}
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
+              The nightmare loop is familiar: blast dead cold emails into the
+              void, babysit a bloated enterprise CRM you never wanted, or burn
+              Sunday afternoons writing corporate threads when you just want to
+              ship features. SignalFlow is the anti-CRM — a distribution layer
+              that runs while you code, surfaces real buyers already talking,
+              and hands you replies that sound human on the first pass.
             </p>
           </div>
+        </section>
 
-          <form onSubmit={(e) => void handleSubmit(e)} className="mt-6 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@startup.com"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete={
-                  mode === "signin" ? "current-password" : "new-password"
-                }
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                required
-                minLength={6}
-              />
-            </div>
-            <Button type="submit" className="w-full gap-2" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                  Authenticating...
-                </>
-              ) : mode === "signin" ? (
-                "Sign in"
-              ) : (
-                "Create account"
-              )}
-            </Button>
-          </form>
-
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            {mode === "signin" ? (
-              <>
-                New here?{" "}
-                <button
-                  type="button"
-                  onClick={toggleMode}
-                  disabled={isLoading}
-                  className={cn(
-                    "font-medium text-primary hover:underline",
-                    isLoading && "pointer-events-none opacity-60"
-                  )}
-                >
-                  Create account
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={toggleMode}
-                  disabled={isLoading}
-                  className={cn(
-                    "font-medium text-primary hover:underline",
-                    isLoading && "pointer-events-none opacity-60"
-                  )}
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
-        </div>
-      </section>
-
-      <section id="features" className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="mb-10 text-center">
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            Everything you need to win the thread
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            A single pipeline from discovery to drafted reply.
-          </p>
-        </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, title, description }) => (
-            <article key={title} className="glass rounded-2xl p-6">
-              <div className="mb-4 flex size-10 items-center justify-center rounded-xl bg-primary/10">
-                <Icon className="size-5 text-primary" aria-hidden />
-              </div>
-              <h3 className="font-semibold text-foreground">{title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                {description}
+        <section id="features" className="px-6 pb-24 pt-4">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-10 text-center">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                Three-tier velocity stack
               </p>
-            </article>
-          ))}
-        </div>
-      </section>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                Everything a solo builder needs to win distribution
+              </h2>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {MODULES.map((mod) => (
+                <article key={mod.title} className="glass rounded-2xl p-6">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {mod.emoji} {mod.tier}
+                  </p>
+                  <h3 className="mt-3 font-semibold tracking-tight text-foreground">
+                    {mod.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {mod.description}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-border/40 px-6 py-16">
+          <div className="glass-strong mx-auto max-w-3xl rounded-2xl p-8 text-center sm:p-10">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              Ready when you are
+            </p>
+            <h2 className="mt-3 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Map your Product DNA. Run the miner. Reply in one click.
+            </h2>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Free to start. Built for indie hackers who ship fast and hate
+              funnels.
+            </p>
+            <Button asChild className="mt-6" size="lg">
+              <Link href="/signup">Create free account</Link>
+            </Button>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

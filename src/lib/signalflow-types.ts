@@ -32,6 +32,10 @@ export type Lead = {
   ai_draft_content: string | null;
   conversation_history: ConversationTurn[];
   source_url: string;
+  /** Optional API alias for `source_url` (one-click outbound navigation). */
+  url?: string;
+  /** Calendar day bucket for the daily drop (ISO timestamp). */
+  released_at: string;
   created_at: string;
   author: string;
   subreddit: string | null;
@@ -51,6 +55,15 @@ export type ProductDNA = {
 
 export type CompetitorBattlecards = Record<string, string>;
 
+/** Proximity-based default Serper dorks (no exact-match quotes). */
+export const DEFAULT_SERPER_QUERIES = [
+  "site:reddit.com (validate OR validation) (idea OR business OR startup) -crypto -trading -forex",
+  "site:reddit.com/r/SaaS (alternative OR competitor) (validation OR research) -trading -crypto",
+  "site:news.ycombinator.com (alternative OR validation OR feedback) (tool OR project OR product) -stocks -trading",
+  "site:x.com (validation OR market) (struggling OR nightmare OR hard) -crypto -forex",
+  "site:producthunt.com/discussions (recommend OR tool) (validation OR feasibility) -trading",
+] as const;
+
 export type Profile = {
   is_mining: boolean;
   product_dna: ProductDNA | null;
@@ -69,11 +82,7 @@ export const initialDNA: ProductDNA = {
     "Slow, generic outreach that ignores context",
   ],
   targetPlatforms: ["reddit", "x", "hackernews"],
-  activeSerperQueries: [
-    'site:reddit.com "looking for alternative" SaaS',
-    'site:x.com "anyone recommend" startup tool',
-    'site:news.ycombinator.com "Ask HN" competitor',
-  ],
+  activeSerperQueries: [...DEFAULT_SERPER_QUERIES],
   competitors: ["Linear", "Notion", "Attio"],
   keywords: ["intent signals", "lead mining", "competitor mentions", "PLG growth"],
 };
