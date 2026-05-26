@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Database, Dna } from "lucide-react";
 import { toast } from "sonner";
 
+import { MasterBlueprintView } from "@/components/vault/master-blueprint-view";
 import { VaultBattlecardsTab } from "@/components/vault/vault-battlecards-tab";
 import { VaultCoreDnaTab } from "@/components/vault/vault-core-dna-tab";
 import { Button } from "@/components/ui/button";
@@ -19,8 +20,13 @@ export function VaultWorkspace() {
   const { profile, persistProductDna } = useSignalFlow();
   const productDna = profile.product_dna;
 
+  const tabParam = searchParams.get("tab");
   const defaultTab =
-    searchParams.get("tab") === "battlecards" ? "battlecards" : "core";
+    tabParam === "battlecards"
+      ? "battlecards"
+      : tabParam === "core"
+        ? "core"
+        : "blueprint";
 
   const [draft, setDraft] = useState<ProductDNA | null>(productDna);
   const [battlecards, setBattlecards] = useState<Record<string, string>>({});
@@ -103,8 +109,8 @@ export function VaultWorkspace() {
           Signal vault
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Your extracted product identity, competitive battlecards, and platform
-          dorks — secured for mining and reply pipelines.
+          Your master strategy blueprint, product identity, battlecards, and
+          platform dorks — secured for mining and daily reflection.
         </p>
       </div>
 
@@ -121,6 +127,9 @@ export function VaultWorkspace() {
       ) : (
         <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList className="glass h-auto w-full flex-wrap justify-start gap-1 p-1.5">
+            <TabsTrigger value="blueprint" className="gap-1.5 px-4 py-2">
+              🧭 Master Blueprint
+            </TabsTrigger>
             <TabsTrigger value="core" className="gap-1.5 px-4 py-2">
               🧬 Core DNA Profile
             </TabsTrigger>
@@ -128,6 +137,10 @@ export function VaultWorkspace() {
               ⚔️ Competitive Battlecards
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="blueprint" className="mt-6">
+            <MasterBlueprintView />
+          </TabsContent>
 
           <TabsContent value="core" className="mt-6">
             <VaultCoreDnaTab

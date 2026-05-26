@@ -9,16 +9,30 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { saveSignupTierPreference } from "@/lib/micro-audit/storage";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { cn } from "@/lib/utils";
 
 export default function SignupPage() {
   const router = useRouter();
+  const [fromMicroAudit, setFromMicroAudit] = useState(false);
+  const [isHobbyistSignup, setIsHobbyistSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromAudit = params.get("from") === "micro-audit";
+    const hobbyist = params.get("tier") === "hobbyist";
+    setFromMicroAudit(fromAudit);
+    setIsHobbyistSignup(hobbyist);
+    if (hobbyist) {
+      saveSignupTierPreference("hobbyist");
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,10 +124,16 @@ export default function SignupPage() {
       <div className="rounded-2xl glass p-8 max-w-md w-full shadow-2xl">
         <div className="space-y-1">
           <h1 className="font-semibold tracking-tight text-foreground">
-            Create your account
+            {isHobbyistSignup
+              ? "Setting up your permanent Free Hobbyist account"
+              : "Create your account"}
           </h1>
           <p className="text-xs text-muted-foreground">
-            Sign up to map your Product DNA and start hunting intent signals.
+            {isHobbyistSignup
+              ? "No credit card required. Your micro-audit DNA is saved — one high-intent lead per day to start."
+              : fromMicroAudit
+                ? "Your micro-audit is saved — finish signup to unlock your Live Distribution Cockpit."
+                : "Sign up to map your Product DNA and start hunting intent signals."}
           </p>
         </div>
 

@@ -23,6 +23,12 @@ import {
   type ProductDNA,
 } from "@/lib/signalflow-types";
 import { getAuthHeaders } from "@/lib/api-auth";
+import {
+  clearPendingMicroAudit,
+  clearSignupTierPreference,
+  readPendingMicroAudit,
+  readSignupTierPreference,
+} from "@/lib/micro-audit/storage";
 import { normalizeVaultDnaPayload } from "@/lib/product-dna-schema";
 import { useSignalFlow } from "@/lib/signalflow-store";
 import { cn } from "@/lib/utils";
@@ -91,6 +97,17 @@ export default function OnboardingPage() {
   useEffect(() => {
     void refreshProfile();
   }, [refreshProfile]);
+
+  useEffect(() => {
+    if (profile.product_dna) return;
+
+    const pending = readPendingMicroAudit();
+    if (!pending?.dna) return;
+
+    setDraft(normalizeVaultDnaPayload(pending.dna));
+    setUrl(pending.url);
+    setPhase("verify");
+  }, [profile.product_dna]);
 
   const runProcessing = useCallback(
     async (targetUrl: string) => {
@@ -303,13 +320,22 @@ export default function OnboardingPage() {
       }
 
       const vaultDna = normalizeVaultDnaPayload(draft);
+      const pendingAudit = readPendingMicroAudit();
+      const signupTier =
+        pendingAudit?.signupTier ?? readSignupTierPreference() ?? undefined;
 
       let res: Response;
       try {
         res = await fetch("/api/onboard/vault", {
           method: "POST",
           headers,
-          body: JSON.stringify({ dna: vaultDna, is_mining: false }),
+          body: JSON.stringify({
+            dna: vaultDna,
+            is_mining: false,
+            ...(signupTier === "hobbyist"
+              ? { subscription_tier: "hobbyist" as const }
+              : {}),
+          }),
         });
       } catch {
         toast.error("Failed to secure vault workspace configuration.");
@@ -331,6 +357,8 @@ export default function OnboardingPage() {
 
       setDna(vaultDna);
       setProfile({ product_dna: vaultDna, is_mining: false });
+      clearPendingMicroAudit();
+      clearSignupTierPreference();
       await refreshProfile();
       toast.success("Product DNA secured. Vault initialized.");
       router.push("/stream/dashboard");

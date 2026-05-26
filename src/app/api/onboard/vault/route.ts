@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
+import { parseSubscriptionTier } from "@/lib/billing/tiers";
+import { generateAndPersistUserBlueprint } from "@/lib/onboard/blueprint-engine";
 import { PipelineError } from "@/lib/onboard-pipeline";
 import { parseClientProductDna } from "@/lib/product-dna-schema";
+import { generateInitialReflectionTasksForUser } from "@/lib/reflection/reflection-pipeline";
 import {
   createRouteHandlerSupabase,
   resolveRouteHandlerUserId,
@@ -10,10 +13,12 @@ import type { ProductDNA } from "@/lib/signalflow-types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type VaultBody = {
   dna?: unknown;
   is_mining?: boolean;
+  subscription_tier?: unknown;
 };
 
 type VaultErrorResponse = {
@@ -109,12 +114,33 @@ export async function POST(request: Request) {
     const isMining =
       typeof body.is_mining === "boolean" ? body.is_mining : false;
 
-    const profilePatch = {
+    const profilePatch: Record<string, unknown> = {
       product_dna: dna,
       is_mining: isMining,
       website_url: dna.url || null,
       mining_started_at: isMining ? new Date().toISOString() : null,
     };
+
+    if (body.subscription_tier !== undefined) {
+      const requestedTier = parseSubscriptionTier(body.subscription_tier);
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("subscription_tier")
+        .eq("id", userId)
+        .maybeSingle();
+
+      const currentTier = parseSubscriptionTier(
+        existingProfile?.subscription_tier
+      );
+
+      if (!existingProfile || currentTier === "hobbyist") {
+        profilePatch.subscription_tier = requestedTier;
+        console.log(
+          "[VAULT TRACE] subscription_tier set:",
+          requestedTier
+        );
+      }
+    }
 
     console.log("[VAULT TRACE] Executing profiles update for user:", userId);
 
@@ -177,6 +203,55 @@ export async function POST(request: Request) {
       console.log("[VAULT TRACE] Database upsert succeeded:", upsertedRows);
     } else {
       console.log("[VAULT TRACE] Database update succeeded:", updatedRows);
+    }
+
+    try {
+      const blueprint = await generateAndPersistUserBlueprint({
+        supabase,
+        userId,
+        dna,
+      });
+      if (blueprint) {
+        console.log(
+          "[VAULT TRACE] Master blueprint saved:",
+          blueprint.chosen_frameworks.join(", ")
+        );
+      }
+    } catch (blueprintErr) {
+      const message =
+        blueprintErr instanceof Error
+          ? blueprintErr.message
+          : "Master blueprint generation failed";
+      console.error(
+        "[VAULT TRACE] Master blueprint failed (vault save still succeeded):",
+        message
+      );
+    }
+
+    try {
+      const reflection = await generateInitialReflectionTasksForUser(
+        userId,
+        dna
+      );
+      if (reflection.ok && (reflection.inserted ?? 0) > 0) {
+        console.log(
+          `[VAULT TRACE] Day-1 reflection tasks seeded: ${reflection.inserted}`
+        );
+      } else if (!reflection.ok) {
+        console.warn(
+          "[VAULT TRACE] Day-1 reflection skipped:",
+          reflection.error
+        );
+      }
+    } catch (reflectionErr) {
+      const message =
+        reflectionErr instanceof Error
+          ? reflectionErr.message
+          : "Day-1 reflection failed";
+      console.error(
+        "[VAULT TRACE] Day-1 reflection failed (vault save still succeeded):",
+        message
+      );
     }
 
     console.log("[VAULT TRACE] ===== Vault save pipeline completed =====");

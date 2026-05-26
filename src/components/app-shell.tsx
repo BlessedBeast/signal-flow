@@ -6,7 +6,6 @@ import {
   Activity,
   Box,
   Database,
-  Flame,
   LogOut,
   MessageSquare,
   Sparkles,
@@ -41,7 +40,6 @@ const NAV_CATEGORIES: NavCategory[] = [
     links: [
       { href: "/velocity/inbound", label: "1-Click Replier", icon: Zap },
       { href: "/velocity/bip", label: "Build In Public", icon: MessageSquare },
-      { href: "/velocity/alerts", label: "Plug Alerts", icon: Flame },
     ],
   },
   {

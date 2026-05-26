@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { DISCOVERY_LEADS_TABLE } from "@/lib/discovery/constants";
@@ -54,7 +55,8 @@ function resolveIngestStatus(
   return "active";
 }
 
-export async function ingestPlugAlertLead(
+export async function upsertDiscoveryLeadFromPlugMatch(
+  supabase: SupabaseClient,
   userId: string,
   payload: IngestAlertPayload
 ): Promise<Lead> {
@@ -64,7 +66,7 @@ export async function ingestPlugAlertLead(
   const aiDraft = payload.tier === "HOT" ? plugDraft : null;
   const releasedAt = new Date().toISOString();
 
-  const { data, error } = await supabaseServer
+  const { data, error } = await supabase
     .from(DISCOVERY_LEADS_TABLE)
     .upsert(
       {
@@ -117,4 +119,15 @@ export async function ingestPlugAlertLead(
     ...lead,
     author: payload.author.trim(),
   };
+}
+
+export async function ingestPlugAlertLead(
+  userId: string,
+  payload: IngestAlertPayload
+): Promise<Lead> {
+  return upsertDiscoveryLeadFromPlugMatch(
+    supabaseServer,
+    userId,
+    payload
+  );
 }

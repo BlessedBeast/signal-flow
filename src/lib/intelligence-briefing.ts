@@ -1,4 +1,4 @@
-export type IntelligenceModuleKey = "alerts" | "replier" | "miner";
+export type IntelligenceModuleKey = "replier" | "miner";
 
 export type IntelligenceBriefingContent = {
   title: string;
@@ -7,15 +7,6 @@ export type IntelligenceBriefingContent = {
 };
 
 const BRIEFINGS: Record<IntelligenceModuleKey, IntelligenceBriefingContent> = {
-  alerts: {
-    title: "Plug Alerts Briefing",
-    subtitle: "Velocity Hub · Plug Radar",
-    bullets: [
-      "Radar tracks internet velocity.",
-      "HOT threads trigger AI drafts.",
-      "Click external links to hijack traffic.",
-    ],
-  },
   replier: {
     title: "1-Click Replier Briefing",
     subtitle: "Velocity Hub · Inbound stream",
@@ -45,9 +36,6 @@ export function getIntelligenceBriefing(
 export function intelligenceModuleKeyFromPath(
   pathname: string
 ): IntelligenceModuleKey {
-  if (pathname.includes("/velocity/alerts")) {
-    return "alerts";
-  }
   if (pathname.includes("/velocity/inbound")) {
     return "replier";
   }

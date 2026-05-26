@@ -29,6 +29,10 @@ import {
   InboundPostureMockup,
   VelocityRadarMockup,
 } from "@/components/marketing/landing-mockups";
+import { MicroAuditModal } from "@/components/marketing/micro-audit-modal";
+import { UrlAuditHeroForm } from "@/components/marketing/url-audit-hero-form";
+import type { MicroAuditResult } from "@/lib/micro-audit/types";
+import { savePendingMicroAudit } from "@/lib/micro-audit/storage";
 import { Button } from "@/components/ui/button";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { cn } from "@/lib/utils";
@@ -341,6 +345,19 @@ export default function HomePage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [hasSession, setHasSession] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditResult, setAuditResult] = useState<MicroAuditResult | null>(null);
+
+  function handleAuditComplete(result: MicroAuditResult) {
+    savePendingMicroAudit({
+      url: result.teaser.url,
+      teaser: result.teaser,
+      dna: result.dna,
+      savedAt: new Date().toISOString(),
+    });
+    setAuditResult(result);
+    setAuditOpen(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -459,8 +476,25 @@ export default function HomePage() {
               </p>
             </FadeUp>
             <FadeUp delay={0.16}>
-              <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                <AuthCTAs hasSession={hasSession} />
+              <div className="mt-10">
+                {hasSession ? (
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <AuthCTAs hasSession={hasSession} />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <UrlAuditHeroForm onAuditComplete={handleAuditComplete} />
+                    <p className="text-center text-xs text-muted-foreground">
+                      Already have an account?{" "}
+                      <Link
+                        href="/login"
+                        className="font-medium text-primary hover:underline"
+                      >
+                        Sign in
+                      </Link>
+                    </p>
+                  </div>
+                )}
               </div>
             </FadeUp>
             <motion.p
@@ -543,14 +577,15 @@ export default function HomePage() {
           />
 
           <div className="relative z-10 mx-auto max-w-3xl">
-            <div className="relative overflow-hidden glass-strong rounded-2xl border border-border/60 p-8 text-center sm:p-10">
+            <div className="relative z-0 isolate overflow-hidden glass-strong rounded-2xl border border-border/60 p-8 text-center sm:p-10">
               <p
-                className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 select-none text-[180px] font-black leading-none text-foreground/[0.03]"
+                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-[180px] font-black leading-none text-muted-foreground"
+                style={{ zIndex: -1, opacity: 0.03 }}
                 aria-hidden
               >
                 SHIP
               </p>
-              <div className="relative z-10">
+              <div className="relative z-[1]">
                 <MonoEyebrow>READY TO RIDE THE STACK</MonoEyebrow>
                 <FadeUp>
                   <h2 className="mt-3 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
@@ -580,7 +615,7 @@ export default function HomePage() {
                     )}
                   </div>
                 </FadeUp>
-                <p className="relative z-10 mt-6 text-center font-mono text-xs text-muted-foreground">
+                <p className="mt-6 text-center font-mono text-xs text-muted-foreground">
                   Free tier includes 50 leads/mo · No credit card required · Cancel,
                   whenever.
                 </p>
@@ -589,6 +624,12 @@ export default function HomePage() {
           </div>
         </section>
       </main>
+
+      <MicroAuditModal
+        open={auditOpen}
+        result={auditResult}
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 }

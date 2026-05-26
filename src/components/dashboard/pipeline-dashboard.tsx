@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { IntentBadge, PlatformBadge, StatusBadge } from "@/components/badges";
+import { TaskChecklist } from "@/components/dashboard/task-checklist";
 import { LeadSheet } from "@/components/lead-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricHint } from "@/components/ui/metric-hint";
@@ -222,204 +223,214 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
         })}
       </div>
 
-      <Collapsible open={ingestOpen} onOpenChange={setIngestOpen}>
-        <div className="glass rounded-2xl overflow-hidden">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-sidebar-accent/40"
-            >
-              <div className="flex items-center gap-2">
-                <Plus className="size-4 text-primary" aria-hidden />
-                <span className="text-sm font-semibold text-foreground">
-                  Manual lead ingestion
-                </span>
-              </div>
-              <ChevronDown
-                className={cn(
-                  "size-4 text-muted-foreground transition-transform",
-                  ingestOpen && "rotate-180"
-                )}
-                aria-hidden
-              />
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <form
-              onSubmit={handleIngest}
-              className="space-y-4 border-t border-border/50 px-5 pb-5 pt-4"
-            >
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Platform</Label>
-                <div className="inline-flex rounded-xl glass-soft p-1">
-                  {PLATFORMS.map(({ id, label }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setIngestPlatform(id)}
-                      className={cn(
-                        "rounded-lg px-4 py-1.5 text-xs font-medium transition-colors",
-                        ingestPlatform === id
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="thread-content">Thread text</Label>
-                <Textarea
-                  id="thread-content"
-                  value={rawContent}
-                  onChange={(e) => setRawContent(e.target.value)}
-                  placeholder="Paste the full post or comment thread…"
-                  className="min-h-[100px] glass-soft resize-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="source-url">Source link (optional)</Label>
-                <Input
-                  id="source-url"
-                  value={sourceUrl}
-                  onChange={(e) => setSourceUrl(e.target.value)}
-                  placeholder="https://reddit.com/…"
-                  className="glass-soft"
-                />
-              </div>
-              <Button type="submit" className="gap-2">
-                <Send className="size-4" aria-hidden />
-                Add to pipeline
-              </Button>
-            </form>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
-
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <h2 className="text-sm font-semibold text-foreground">
-            Lead ledger
-          </h2>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            {streamLeadCount} in stream · grouped by daily drop
-          </p>
-        </div>
-
-        {streamLeadCount === 0 ? (
-          <EmptyState
-            icon={Target}
-            title="Ledger awaiting daily drop"
-            description="No active stream leads yet. Run the adaptive miner from the sidebar, or manually ingest a thread above while cron queues fresh signals in the vault."
-            footnote={LEDGER_EMPTY_FOOTNOTE}
-            className="min-h-[280px]"
-          />
-        ) : (
-          <div className="space-y-3">
-            {ledgerBuckets.map((bucket) => (
-              <Collapsible
-                key={bucket.key}
-                defaultOpen={bucket.key === "today"}
-                className="group glass-strong overflow-hidden rounded-2xl"
-              >
-                <CollapsibleTrigger asChild>
-                  <button
-                    type="button"
+      <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
+        <div className="space-y-4 lg:col-span-8">
+          <Collapsible open={ingestOpen} onOpenChange={setIngestOpen}>
+            <div className="glass rounded-2xl overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-sidebar-accent/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <Plus className="size-4 text-primary" aria-hidden />
+                    <span className="text-sm font-semibold text-foreground">
+                      Manual lead ingestion
+                    </span>
+                  </div>
+                  <ChevronDown
                     className={cn(
-                      "flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors",
-                      "hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      "size-4 text-muted-foreground transition-transform",
+                      ingestOpen && "rotate-180"
                     )}
+                    aria-hidden
+                  />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <form
+                  onSubmit={handleIngest}
+                  className="space-y-4 border-t border-border/50 px-5 pb-5 pt-4"
+                >
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">
+                      Platform
+                    </Label>
+                    <div className="inline-flex rounded-xl glass-soft p-1">
+                      {PLATFORMS.map(({ id, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setIngestPlatform(id)}
+                          className={cn(
+                            "rounded-lg px-4 py-1.5 text-xs font-medium transition-colors",
+                            ingestPlatform === id
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="thread-content">Thread text</Label>
+                    <Textarea
+                      id="thread-content"
+                      value={rawContent}
+                      onChange={(e) => setRawContent(e.target.value)}
+                      placeholder="Paste the full post or comment thread…"
+                      className="min-h-[100px] glass-soft resize-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="source-url">Source link (optional)</Label>
+                    <Input
+                      id="source-url"
+                      value={sourceUrl}
+                      onChange={(e) => setSourceUrl(e.target.value)}
+                      placeholder="https://reddit.com/…"
+                      className="glass-soft"
+                    />
+                  </div>
+                  <Button type="submit" className="gap-2">
+                    <Send className="size-4" aria-hidden />
+                    Add to pipeline
+                  </Button>
+                </form>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <h2 className="text-sm font-semibold text-foreground">
+                Lead ledger
+              </h2>
+              <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {streamLeadCount} in stream · grouped by daily drop
+              </p>
+            </div>
+
+            {streamLeadCount === 0 ? (
+              <EmptyState
+                icon={Target}
+                title="Ledger awaiting daily drop"
+                description="No active stream leads yet. Run the adaptive miner from the sidebar, or manually ingest a thread above while cron queues fresh signals in the vault."
+                footnote={LEDGER_EMPTY_FOOTNOTE}
+                className="min-h-[280px]"
+              />
+            ) : (
+              <div className="space-y-3">
+                {ledgerBuckets.map((bucket) => (
+                  <Collapsible
+                    key={bucket.key}
+                    defaultOpen={bucket.key === "today"}
+                    className="group glass-strong overflow-hidden rounded-2xl"
                   >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <ChevronDown
-                        className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
-                        aria-hidden
-                      />
-                      <span className="truncate text-base font-semibold tracking-tight text-foreground">
-                        {bucket.label}
-                      </span>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                      <Badge
-                        variant="outline"
-                        className="border-border/60 bg-muted/30 font-mono text-[10px] text-foreground"
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors",
+                          "hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        )}
                       >
-                        {bucket.stats.total} lead
-                        {bucket.stats.total === 1 ? "" : "s"}
-                      </Badge>
-                      {bucket.stats.untouched > 0 ? (
-                        <Badge
-                          variant="outline"
-                          className="border-primary/25 bg-primary/10 font-mono text-[10px] text-foreground"
-                        >
-                          {bucket.stats.untouched} untouched
-                        </Badge>
-                      ) : null}
-                      {bucket.stats.ongoingFollowUps > 0 ? (
-                        <Badge
-                          variant="outline"
-                          className="border-border/60 font-mono text-[10px] text-muted-foreground"
-                        >
-                          {bucket.stats.ongoingFollowUps} ongoing follow-up
-                          {bucket.stats.ongoingFollowUps === 1 ? "" : "s"}
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <ul className="space-y-2 border-t border-border/50 px-3 pb-3 pt-2">
-                    {bucket.leads.map((lead) => {
-                      const isActive = lead.id === activeLeadId;
-                      return (
-                        <li key={lead.id}>
-                          <button
-                            type="button"
-                            onClick={() => setActiveLeadId(lead.id)}
-                            className={cn(
-                              "glass-soft w-full rounded-xl px-4 py-4 text-left transition-all duration-150",
-                              "hover:ring-1 hover:ring-primary/20",
-                              isActive &&
-                                "ring-2 ring-primary/30 bg-sidebar-accent/50"
-                            )}
+                        <div className="flex min-w-0 items-center gap-2">
+                          <ChevronDown
+                            className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+                            aria-hidden
+                          />
+                          <span className="truncate text-base font-semibold tracking-tight text-foreground">
+                            {bucket.label}
+                          </span>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                          <Badge
+                            variant="outline"
+                            className="border-border/60 bg-muted/30 font-mono text-[10px] text-foreground"
                           >
-                            <div className="flex flex-wrap items-center gap-2">
-                              <PlatformBadge platform={lead.platform} />
-                              <IntentBadge
-                                tier={getIntentTier(lead.intent_score)}
-                              />
-                              <StatusBadge status={lead.status} />
-                              <span className="ml-auto text-xs text-muted-foreground">
-                                {formatDistanceToNow(
-                                  new Date(lead.released_at),
-                                  { addSuffix: true }
+                            {bucket.stats.total} lead
+                            {bucket.stats.total === 1 ? "" : "s"}
+                          </Badge>
+                          {bucket.stats.untouched > 0 ? (
+                            <Badge
+                              variant="outline"
+                              className="border-primary/25 bg-primary/10 font-mono text-[10px] text-foreground"
+                            >
+                              {bucket.stats.untouched} untouched
+                            </Badge>
+                          ) : null}
+                          {bucket.stats.ongoingFollowUps > 0 ? (
+                            <Badge
+                              variant="outline"
+                              className="border-border/60 font-mono text-[10px] text-muted-foreground"
+                            >
+                              {bucket.stats.ongoingFollowUps} ongoing follow-up
+                              {bucket.stats.ongoingFollowUps === 1 ? "" : "s"}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <ul className="space-y-2 border-t border-border/50 px-3 pb-3 pt-2">
+                        {bucket.leads.map((lead) => {
+                          const isActive = lead.id === activeLeadId;
+                          return (
+                            <li key={lead.id}>
+                              <button
+                                type="button"
+                                onClick={() => setActiveLeadId(lead.id)}
+                                className={cn(
+                                  "glass-soft w-full rounded-xl px-4 py-4 text-left transition-all duration-150",
+                                  "hover:ring-1 hover:ring-primary/20",
+                                  isActive &&
+                                    "ring-2 ring-primary/30 bg-sidebar-accent/50"
                                 )}
-                              </span>
-                            </div>
-                            <p className="mt-2 text-sm font-medium text-foreground">
-                              {lead.author}
-                              {lead.subreddit ? (
-                                <span className="font-normal text-muted-foreground">
-                                  {" "}
-                                  · {lead.subreddit}
-                                </span>
-                              ) : null}
-                            </p>
-                            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                              {snippet(lead.content)}
-                            </p>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </CollapsibleContent>
-              </Collapsible>
-            ))}
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <PlatformBadge platform={lead.platform} />
+                                  <IntentBadge
+                                    tier={getIntentTier(lead.intent_score)}
+                                  />
+                                  <StatusBadge status={lead.status} />
+                                  <span className="ml-auto text-xs text-muted-foreground">
+                                    {formatDistanceToNow(
+                                      new Date(lead.released_at),
+                                      { addSuffix: true }
+                                    )}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-sm font-medium text-foreground">
+                                  {lead.author}
+                                  {lead.subreddit ? (
+                                    <span className="font-normal text-muted-foreground">
+                                      {" "}
+                                      · {lead.subreddit}
+                                    </span>
+                                  ) : null}
+                                </p>
+                                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                                  {snippet(lead.content)}
+                                </p>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </CollapsibleContent>
+                  </Collapsible>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
+
+        <aside className="lg:col-span-4">
+          <TaskChecklist />
+        </aside>
       </div>
 
       <LeadSheet

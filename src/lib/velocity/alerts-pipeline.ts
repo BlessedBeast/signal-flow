@@ -2,6 +2,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { DISCOVERY_LEADS_TABLE } from "@/lib/discovery/constants";
+import { discoveryUrlExistsForUser } from "@/lib/discovery/lead-bank";
+import {
+  type IngestAlertPayload,
+  upsertDiscoveryLeadFromPlugMatch,
+} from "@/lib/leads/ingest-alert-pipeline";
+import {
+  passesStrictRelevanceFilter,
+  scoreIntentWithOpenAI,
+} from "@/lib/mining/hunt-pipeline";
+import { fetchSerperQuery, type SerperCandidate } from "@/lib/miner/search-pipeline";
 import { safeParseProductDna } from "@/lib/product-dna-schema";
 import {
   getIntentTier,
@@ -12,6 +22,9 @@ import {
 } from "@/lib/signalflow-types";
 
 const OPENAI_MODEL = "gpt-4o";
+const PLUG_PROMOTE_MIN_SCORE = 50;
+const MAX_SERPER_QUERIES_PER_SCAN = 3;
+const MAX_KEYWORD_CANDIDATES_TO_SCORE = 8;
 
 export const PLUG_ALERTS_TABLE = "plug_alerts" as const;
 
@@ -475,6 +488,143 @@ async function enrichHotAlerts(
   });
 }
 
+function plugAlertToIngestPayload(alert: PlugAlert): IngestAlertPayload {
+  const tier = alert.velocity_tier ?? alert.tier;
+  const plugDraft = hotPlugDraftFromAlert(alert);
+
+  return {
+    content: alert.post_snippet.trim() || alert.content.trim(),
+    platform: alert.platform,
+    source_url: alert.source_url,
+    author: alert.author.trim() || authorFromPlatform(alert.platform),
+    intent_score: alert.velocity_score,
+    tier,
+    plugText: plugDraft,
+  };
+}
+
+async function autoPromoteQualifiedAlertsToDiscoveryStream(
+  supabase: SupabaseClient,
+  userId: string,
+  alerts: PlugAlert[]
+): Promise<number> {
+  let promoted = 0;
+
+  for (const alert of alerts) {
+    if (alert.velocity_score < PLUG_PROMOTE_MIN_SCORE) continue;
+
+    try {
+      await upsertDiscoveryLeadFromPlugMatch(
+        supabase,
+        userId,
+        plugAlertToIngestPayload(alert)
+      );
+      promoted += 1;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "promote failed";
+      console.warn(
+        `[plug-alerts] Auto-promote skipped for ${alert.source_url}:`,
+        message
+      );
+    }
+  }
+
+  return promoted;
+}
+
+async function discoverAndPromoteKeywordMatches(
+  supabase: SupabaseClient,
+  userId: string,
+  dna: ProductDNA
+): Promise<number> {
+  const platformSet = new Set(dna.targetPlatforms);
+  const queries = dna.activeSerperQueries.slice(0, MAX_SERPER_QUERIES_PER_SCAN);
+  const seenUrls = new Set<string>();
+  const candidates: SerperCandidate[] = [];
+
+  for (const query of queries) {
+    try {
+      const results = await fetchSerperQuery(query, {
+        timeRange: "week",
+        filterStaleYears: true,
+      });
+
+      for (const candidate of results) {
+        if (!platformSet.has(candidate.platform)) continue;
+        if (!passesStrictRelevanceFilter(candidate, dna)) continue;
+
+        const normalized = candidate.link.split("#")[0]!.trim();
+        if (seenUrls.has(normalized)) continue;
+        seenUrls.add(normalized);
+        candidates.push({ ...candidate, link: normalized });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Serper failed";
+      console.warn(`[plug-alerts] Serper query skipped (${query}):`, message);
+    }
+  }
+
+  let promoted = 0;
+
+  for (const candidate of candidates.slice(0, MAX_KEYWORD_CANDIDATES_TO_SCORE)) {
+    try {
+      const exists = await discoveryUrlExistsForUser(
+        supabase,
+        userId,
+        candidate.link
+      );
+      if (exists) continue;
+
+      const postText = [candidate.title, candidate.snippet]
+        .filter(Boolean)
+        .join("\n\n");
+
+      let intentScore: number;
+      try {
+        intentScore = await scoreIntentWithOpenAI({
+          postText,
+          painPoints: dna.painPoints,
+          personaContext: "",
+          productName: dna.productName,
+        });
+      } catch (scoreErr) {
+        const message =
+          scoreErr instanceof Error ? scoreErr.message : "scoring failed";
+        console.warn(
+          `[plug-alerts] Intent scoring skipped for ${candidate.link}:`,
+          message
+        );
+        continue;
+      }
+
+      if (intentScore < PLUG_PROMOTE_MIN_SCORE) continue;
+
+      const tier = getIntentTier(intentScore);
+
+      await upsertDiscoveryLeadFromPlugMatch(supabase, userId, {
+        content: postText,
+        platform: candidate.platform,
+        source_url: candidate.link,
+        author: authorFromPlatform(candidate.platform),
+        intent_score: intentScore,
+        tier,
+        plugText: null,
+      });
+
+      promoted += 1;
+    } catch (promoteErr) {
+      const message =
+        promoteErr instanceof Error ? promoteErr.message : "promote failed";
+      console.warn(
+        `[plug-alerts] Keyword match promote skipped for ${candidate.link}:`,
+        message
+      );
+    }
+  }
+
+  return promoted;
+}
+
 function latestScannedAt(alerts: PlugAlert[]): string {
   if (alerts.length === 0) return new Date(0).toISOString();
   return alerts.reduce((latest, row) =>
@@ -531,8 +681,31 @@ export async function executePlugAlertsScan(
   supabase: SupabaseClient
 ): Promise<PlugAlertsResult> {
   const dna = await loadRequiredProductDna(supabase, userId);
+
+  const keywordPromoted = await discoverAndPromoteKeywordMatches(
+    supabase,
+    userId,
+    dna
+  );
+  if (keywordPromoted > 0) {
+    console.log(
+      `[plug-alerts] Promoted ${keywordPromoted} keyword match(es) to discovery_leads`
+    );
+  }
+
   const alerts = await fetchAlertsFromDiscoveryLeads(supabase, userId);
   const enriched = await enrichHotAlerts(alerts, dna);
+
+  const streamPromoted = await autoPromoteQualifiedAlertsToDiscoveryStream(
+    supabase,
+    userId,
+    enriched
+  );
+  if (streamPromoted > 0) {
+    console.log(
+      `[plug-alerts] Synced ${streamPromoted} qualified alert(s) into discovery_leads`
+    );
+  }
 
   await persistPlugAlerts(supabase, userId, enriched);
 

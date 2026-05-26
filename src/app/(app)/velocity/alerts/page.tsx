@@ -1,5 +1,6 @@
-import { AlertsDashboard } from "@/components/velocity/alerts-dashboard";
+import { redirect } from "next/navigation";
 
-export default function PlugAlertsPage() {
-  return <AlertsDashboard />;
+/** Legacy Plug Alerts route — radar now auto-feeds the Lead Finder stream. */
+export default function LegacyPlugAlertsPage() {
+  redirect("/stream/dashboard");
 }

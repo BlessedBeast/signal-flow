@@ -90,16 +90,19 @@ export function LeadSheet({
 
   const isDraftGenerating = isGeneratingBaseDraft || isRegenerating;
 
+  const leadId = lead?.id;
+  const leadDraftContent = lead?.ai_draft_content;
+
   useEffect(() => {
-    if (!lead || !open) return;
+    if (!leadId || !open) return;
     setFollowUpInput("");
     setCopied(false);
     setIsGeneratingBaseDraft(false);
     setIsRegenerating(false);
     setDraftText(
-      hasDraftContent(lead.ai_draft_content) ? lead.ai_draft_content!.trim() : ""
+      hasDraftContent(leadDraftContent) ? leadDraftContent!.trim() : ""
     );
-  }, [lead?.id, lead?.ai_draft_content, open]);
+  }, [leadId, leadDraftContent, open]);
 
   async function handleGenerateInitialDraft() {
     if (!lead) return;
