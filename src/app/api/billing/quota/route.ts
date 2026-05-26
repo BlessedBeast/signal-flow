@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { resolveUserBillingContext } from "@/lib/billing/user-billing";
-import {
-  authenticateRouteHandler,
-  createRouteHandlerSupabase,
-} from "@/lib/supabase-route";
+import { authenticateRouteHandler } from "@/lib/supabase-route";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createRouteHandlerSupabase(request);
-    const auth = await authenticateRouteHandler(request, supabase);
+    const auth = await authenticateRouteHandler(request);
 
     if (!auth.ok) {
       return NextResponse.json(
@@ -21,7 +17,10 @@ export async function GET(request: Request) {
       );
     }
 
-    const billing = await resolveUserBillingContext(supabase, auth.user.id);
+    const billing = await resolveUserBillingContext(
+      auth.supabase,
+      auth.user.id
+    );
 
     return NextResponse.json({
       ok: true,

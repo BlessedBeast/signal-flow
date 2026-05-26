@@ -2,12 +2,10 @@ import { NextResponse } from "next/server";
 
 import {
   executePlugAlertsScan,
+  fetchUserPlugAlerts,
   PlugAlertsError,
 } from "@/lib/velocity/alerts-pipeline";
-import {
-  createRouteHandlerSupabase,
-  resolveRouteHandlerUserId,
-} from "@/lib/supabase-route";
+import { authenticateRouteHandler } from "@/lib/supabase-route";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,67 +17,95 @@ type PlugAlertsErrorResponse = {
   step: string | null;
 };
 
-export async function POST(request: Request) {
-  console.log("[PLUG ALERTS TRACE] ===== Plug radar scan started =====");
-  console.log("[PLUG ALERTS TRACE] Incoming POST /api/velocity/alerts");
+type PlugAlertsSuccessResponse = {
+  ok: true;
+  data: Awaited<ReturnType<typeof fetchUserPlugAlerts>>;
+};
 
+function jsonResponse<T>(body: T, status: number): NextResponse<T> {
+  return NextResponse.json(body, {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function plugAlertsErrorResponse(error: unknown): NextResponse<PlugAlertsErrorResponse> {
+  if (error instanceof PlugAlertsError) {
+    console.error("[PLUG ALERTS API]", error.message, { step: error.step });
+    return jsonResponse(
+      {
+        ok: false,
+        error: error.message,
+        step: error.step ?? "plug-alerts-engine",
+      },
+      error.status
+    );
+  }
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Unknown pipeline explosion";
+
+  console.error("[PLUG ALERTS API] Unhandled error:", error);
+
+  return jsonResponse(
+    {
+      ok: false,
+      error: message,
+      step: "plug-alerts-engine",
+    },
+    500
+  );
+}
+
+export async function GET(request: Request): Promise<NextResponse> {
   try {
-    console.log("[PLUG ALERTS TRACE] Checkpoint 1: Auth verification");
-    const supabase = await createRouteHandlerSupabase(request);
-    const userId = await resolveRouteHandlerUserId(request, supabase);
-    console.log("[PLUG ALERTS TRACE] Authenticated user:", userId);
-
-    if (!userId) {
-      console.error(
-        "[PLUG ALERTS TRACE] Authentication failed: no valid session"
-      );
-      return NextResponse.json(
+    const auth = await authenticateRouteHandler(request);
+    if (!auth.ok) {
+      return jsonResponse(
         {
           ok: false,
           error: "Authentication required",
           step: "auth",
-        } satisfies PlugAlertsErrorResponse,
-        { status: 401 }
+        },
+        401
       );
     }
 
-    console.log("[PLUG ALERTS TRACE] Checkpoint 2: Execute velocity scan");
-    const result = await executePlugAlertsScan(userId, supabase);
-
-    console.log(
-      "[PLUG ALERTS TRACE] ===== Plug radar scan completed successfully ====="
-    );
-
-    return NextResponse.json({ ok: true, data: result }, { status: 200 });
+    const result = await fetchUserPlugAlerts(auth.user.id, auth.supabase);
+    return jsonResponse({ ok: true, data: result } satisfies PlugAlertsSuccessResponse, 200);
   } catch (error) {
-    console.error(
-      "[PLUG ALERTS TRACE] Fatal exception during scan:",
-      error
-    );
+    return plugAlertsErrorResponse(error);
+  }
+}
 
-    if (error instanceof PlugAlertsError) {
-      return NextResponse.json(
+export async function POST(request: Request): Promise<NextResponse> {
+  try {
+    console.log("[PLUG ALERTS TRACE] Incoming POST /api/velocity/alerts");
+
+    const auth = await authenticateRouteHandler(request);
+    if (!auth.ok) {
+      console.error("[PLUG ALERTS TRACE] Authentication failed");
+      return jsonResponse(
         {
           ok: false,
-          error: error.message,
-          step: error.step ?? "plug-alerts-engine",
-        } satisfies PlugAlertsErrorResponse,
-        { status: error.status }
+          error: "Authentication required",
+          step: "auth",
+        },
+        401
       );
     }
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Internal plug alerts pipeline error";
+    console.log("[PLUG ALERTS TRACE] Authenticated user:", auth.user.id);
 
-    return NextResponse.json(
-      {
-        ok: false,
-        error: message,
-        step: "plug-alerts-engine",
-      } satisfies PlugAlertsErrorResponse,
-      { status: 500 }
-    );
+    const result = await executePlugAlertsScan(auth.user.id, auth.supabase);
+
+    console.log("[PLUG ALERTS TRACE] Scan completed successfully");
+
+    return jsonResponse({ ok: true, data: result } satisfies PlugAlertsSuccessResponse, 200);
+  } catch (error) {
+    console.error("[PLUG ALERTS TRACE] Fatal exception during scan:", error);
+    return plugAlertsErrorResponse(error);
   }
 }

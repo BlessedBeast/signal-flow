@@ -183,4 +183,89 @@
       );
     background-size: 24px 24px;
   }
+
+  .hero-dot-grid {
+    background-image: radial-gradient(
+      circle,
+      currentColor 1px,
+      transparent 1px
+    );
+    background-size: 28px 28px;
+    color: oklch(0.21 0.006 286 / 0.08);
+    animation: hero-dot-drift 20s linear infinite;
+  }
+
+  .badge-shimmer {
+    background: linear-gradient(
+      90deg,
+      oklch(0.55 0.14 160 / 0.08) 0%,
+      oklch(0.55 0.14 160 / 0.22) 50%,
+      oklch(0.55 0.14 160 / 0.08) 100%
+    );
+    background-size: 200% 100%;
+    animation: badge-shimmer 2s ease infinite;
+  }
+
+  .text-shimmer-loading {
+    background: linear-gradient(
+      90deg,
+      var(--muted-foreground) 0%,
+      oklch(0.7 0.02 286) 50%,
+      var(--muted-foreground) 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: badge-shimmer 1.8s ease infinite;
+  }
+
+  .cursor-blink {
+    animation: cursor-blink 1s step-end infinite;
+  }
+
+  .live-pulse-dot {
+    animation: live-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes hero-dot-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-28px);
+  }
+}
+
+@keyframes badge-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes cursor-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
 }

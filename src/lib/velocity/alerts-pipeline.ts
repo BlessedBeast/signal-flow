@@ -1,31 +1,59 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-import { intentTierFromScore } from "@/lib/mining/hunt-pipeline";
+import { DISCOVERY_LEADS_TABLE } from "@/lib/discovery/constants";
 import { safeParseProductDna } from "@/lib/product-dna-schema";
-import type { IntentTier, Platform, ProductDNA } from "@/lib/signalflow-types";
+import {
+  getIntentTier,
+  parsePlatform,
+  type IntentTier,
+  type Platform,
+  type ProductDNA,
+} from "@/lib/signalflow-types";
 
 const OPENAI_MODEL = "gpt-4o";
 
-export type PlugAlertEngagement = {
-  likes: number;
-  shares: number;
-  comments: number;
-  minutesSincePost: number;
-};
+export const PLUG_ALERTS_TABLE = "plug_alerts" as const;
 
+/** Columns selected from public.plug_alerts — must match PostgreSQL exactly. */
+export const PLUG_ALERTS_SELECT =
+  "id, user_id, lead_id, url, source_url, content, platform, author, subreddit, post_snippet, comments, velocity_score, velocity_tier, tier, created_at" as const;
+
+/** 1:1 with public.plug_alerts row (platform parsed for UI badges). */
 export type PlugAlert = {
   id: string;
-  platform: Platform;
-  postSnippet: string;
-  velocityScore: number;
-  tier: IntentTier;
-  statusIndicator: string;
-  plugText: string | null;
-  engagement: PlugAlertEngagement;
-  trackedUrl: string;
+  user_id: string;
+  lead_id: string | null;
+  url: string;
   source_url: string;
+  content: string;
+  platform: Platform;
   author: string;
+  subreddit: string | null;
+  post_snippet: string;
+  comments: number;
+  velocity_score: number;
+  velocity_tier: IntentTier;
+  tier: IntentTier;
+  created_at: string;
+};
+
+export type PlugAlertDbRow = {
+  id: string;
+  user_id: string;
+  lead_id: string | null;
+  url: string;
+  source_url: string;
+  content: string;
+  platform: string;
+  author: string;
+  subreddit: string | null;
+  post_snippet: string;
+  comments: number;
+  velocity_score: number | string;
+  velocity_tier: string;
+  tier: string;
+  created_at: string;
 };
 
 export type PlugAlertsResult = {
@@ -50,37 +78,41 @@ const plugTextResponseSchema = z.object({
   plugText: z.string().min(1),
 });
 
-type SimulatedPost = {
+type DiscoveryLeadAlertRow = {
   id: string;
-  platform: Platform;
-  postSnippet: string;
-  engagement: PlugAlertEngagement;
-  recentWindowLikes: number;
-  recentWindowComments: number;
+  platform: string | null;
+  source_url: string;
+  content: string | null;
+  intent_score: number | null;
+  created_at: string;
 };
 
-function hashSeed(input: string): number {
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    hash = (hash << 5) - hash + input.charCodeAt(i);
-    hash |= 0;
+function parseIntentTier(raw: string | null | undefined): IntentTier {
+  if (raw === "HOT" || raw === "WARM" || raw === "COLD") {
+    return raw;
   }
-  return Math.abs(hash);
+  return "COLD";
 }
 
-function seededRandom(seed: number, index: number): number {
-  const x = Math.sin(seed + index * 9999) * 10000;
-  return x - Math.floor(x);
+function parseVelocityScore(raw: number | string | null | undefined): number {
+  const n = typeof raw === "string" ? Number(raw) : raw;
+  if (typeof n !== "number" || Number.isNaN(n)) return 0;
+  return Math.min(100, Math.max(0, Math.round(n)));
 }
 
-function buildAntiAiDetectionBlock(): string {
-  return `CRITICAL ANTI-AI DETECTION RULES (mandatory):
-- NEVER use em-dashes (—) or en-dashes (–). Only commas, periods, or a basic hyphen (-).
-- BANNED WORDS/PHRASES: delve, leverage, maze, goldmine, unlock, supercharge, crucial, pain point, hope that helps, happy to help, game-changer, in conclusion, right?, remember.
-- Write lowercase-heavy, fragmented, casual developer voice. Use shortcuts like idk, tbh, imo, wdym when natural.
-- No bullet points, no bold, no corporate greetings or sign-offs.
-- Add a slight rough edge (missing apostrophe, trailing comma) so it reads human-posted.
-- No rhetorical opener/closer questions.`;
+function snippetFromContent(content: string | null, max = 320): string {
+  const text = (content ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "Thread snippet unavailable";
+  return text.length <= max ? text : `${text.slice(0, max)}…`;
+}
+
+function extractSubreddit(sourceUrl: string): string | null {
+  try {
+    const match = sourceUrl.match(/reddit\.com\/r\/([^/]+)/i);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function authorFromPlatform(platform: Platform): string {
@@ -100,30 +132,21 @@ function authorFromPlatform(platform: Platform): string {
   }
 }
 
-function buildAlertSourceUrl(platform: Platform, alertId: string): string {
-  const slug = alertId.replace(/^alert-/, "thread");
-  switch (platform) {
-    case "reddit":
-      return `https://www.reddit.com/r/SaaS/comments/${slug}/plug_radar`;
-    case "x":
-      return `https://x.com/i/status/${slug}`;
-    case "hackernews":
-      return `https://news.ycombinator.com/item?id=${slug}`;
-    case "indiehackers":
-      return `https://www.indiehackers.com/post/${slug}`;
-    case "producthunt":
-      return `https://www.producthunt.com/posts/${slug}`;
-    default:
-      return `https://signalflow.app/plug-radar/${slug}`;
-  }
+function estimateComments(intentScore: number): number {
+  const factor = Math.min(100, Math.max(0, intentScore)) / 100;
+  return Math.round(3 + factor * 50);
 }
 
-function buildStatusIndicator(tier: IntentTier, score: number): string {
+/** UI-only label derived from tier columns (not stored in DB). */
+export function tierStatusLabel(
+  tier: IntentTier,
+  velocity_score: number
+): string {
   switch (tier) {
     case "HOT":
       return "Peak Velocity Reached — Deploy Link";
     case "WARM":
-      return score >= 55
+      return velocity_score >= 55
         ? "Momentum Surging — Link Window Opening"
         : "Click to open workspace and forge custom stealth reply";
     case "COLD":
@@ -131,91 +154,173 @@ function buildStatusIndicator(tier: IntentTier, score: number): string {
   }
 }
 
-export function calculateVelocityScore(
-  engagement: PlugAlertEngagement,
-  recentWindow?: { likes: number; comments: number }
-): number {
-  const { likes, shares, comments, minutesSincePost } = engagement;
-  const elapsed = Math.max(minutesSincePost, 1);
-
-  const totalEngagement = likes + shares * 2.5 + comments * 3;
-  const rate = totalEngagement / elapsed;
-  const rateScore = Math.min(60, Math.log10(rate + 1) * 25);
-
-  const recentLikes = recentWindow?.likes ?? likes * 0.35;
-  const recentComments = recentWindow?.comments ?? comments * 0.4;
-  const recentBurst = recentLikes + recentComments * 3;
-  const baseline = totalEngagement / Math.max(elapsed / 15, 1);
-  const acceleration =
-    recentBurst > baseline
-      ? Math.min(25, (recentBurst / Math.max(baseline, 1)) * 8)
-      : 0;
-
-  const recencyBonus =
-    elapsed <= 90 && rate > 0.4 ? Math.min(15, (90 - elapsed) / 6) : 0;
-
-  return Math.min(100, Math.round(rateScore + acceleration + recencyBonus));
+/** HOT plug draft lives in `content` after scan enrichment. */
+export function hotPlugDraftFromAlert(alert: PlugAlert): string | null {
+  const tier = alert.velocity_tier ?? alert.tier;
+  if (tier !== "HOT") return null;
+  const draft = alert.content.trim();
+  const snippet = alert.post_snippet.trim();
+  if (!draft || draft === snippet) return null;
+  return draft;
 }
 
-function pickPlatforms(dna: ProductDNA): Platform[] {
-  const platforms =
-    dna.targetPlatforms.length > 0 ? dna.targetPlatforms : (["x", "reddit"] as Platform[]);
-  return platforms.slice(0, 3);
+function mapDbRowToPlugAlert(row: PlugAlertDbRow): PlugAlert {
+  const velocity_score = parseVelocityScore(row.velocity_score);
+  const velocity_tier = parseIntentTier(row.velocity_tier);
+  const tier = parseIntentTier(row.tier);
+  const sourceUrl = (row.source_url ?? "").trim();
+  if (!sourceUrl) {
+    throw new Error("plug_alerts row missing source_url");
+  }
+  const url = (row.url ?? "").trim() || sourceUrl;
+
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    lead_id: row.lead_id,
+    url,
+    source_url: sourceUrl,
+    content: row.content ?? "",
+    platform: parsePlatform(row.platform),
+    author: row.author ?? "",
+    subreddit: row.subreddit,
+    post_snippet: row.post_snippet,
+    comments: row.comments ?? 0,
+    velocity_score,
+    velocity_tier,
+    tier,
+    created_at: row.created_at,
+  };
 }
 
-function buildSimulatedPosts(dna: ProductDNA, userId: string): SimulatedPost[] {
-  const seed = hashSeed(`${userId}:${dna.productName}:${dna.url}`);
-  const platforms = pickPlatforms(dna);
-  const keyword = dna.keywords[0] ?? dna.productName.toLowerCase();
-  const pain = dna.painPoints[0] ?? "finding the right tool";
-  const competitor = dna.competitors[0] ?? "the usual suspects";
+function mapDiscoveryLeadToPlugAlert(
+  lead: DiscoveryLeadAlertRow,
+  userId: string
+): PlugAlert | null {
+  const sourceUrl = lead.source_url?.trim();
+  if (!sourceUrl) return null;
 
-  const templates: { platform: Platform; snippet: string }[] = [
-    {
-      platform: platforms[0] ?? "x",
-      snippet: `anyone else struggling with ${pain}? tried a few things but nothing sticks. curious what solo founders are actually using for ${keyword} rn`,
-    },
-    {
-      platform: platforms[1] ?? platforms[0] ?? "reddit",
-      snippet: `hot take: most ${keyword} tools are overbuilt. i just want something dead simple that surfaces intent without another dashboard. what am i missing`,
-    },
-    {
-      platform: platforms[2] ?? platforms[0] ?? "hackernews",
-      snippet: `Ask HN: alternatives to ${competitor} for a tiny team? we outgrew spreadsheets but dont need enterprise bloat. ${keyword} use case`,
-    },
-    {
-      platform: platforms[0] ?? "x",
-      snippet: `posted about our launch 47 min ago. engagement feels weirdly high for zero links in the thread. when do you drop the url without killing reach`,
-    },
-    {
-      platform: platforms[1] ?? "reddit",
-      snippet: `weekly thread: what are you building? im working on something around ${keyword}. not pitching yet just looking for honest feedback on ${pain}`,
-    },
-    {
-      platform: platforms[0] ?? "indiehackers",
-      snippet: `update: hit 200 impressions in an hour on a text-only post. no link, no CTA. feels like the algo reward window before external urls get suppressed`,
-    },
-  ];
+  const platform = parsePlatform(lead.platform);
+  const velocity_score = parseVelocityScore(lead.intent_score);
+  const velocity_tier = getIntentTier(velocity_score);
+  const tier = velocity_tier;
+  const post_snippet = snippetFromContent(lead.content);
+  const fullContent = (lead.content ?? "").trim() || post_snippet;
 
-  return templates.map((template, index) => {
-    const rand = (offset: number) => seededRandom(seed, index * 10 + offset);
-    const minutesSincePost = Math.round(8 + rand(1) * 180);
-    const likes = Math.round(12 + rand(2) * 420 * (index === 3 || index === 5 ? 2.2 : 1));
-    const shares = Math.round(2 + rand(3) * 85 * (index === 3 ? 1.8 : 1));
-    const comments = Math.round(3 + rand(4) * 95 * (index === 0 || index === 3 ? 1.6 : 1));
+  return {
+    id: lead.id,
+    user_id: userId,
+    lead_id: lead.id,
+    url: sourceUrl,
+    source_url: sourceUrl,
+    content: fullContent,
+    platform,
+    author: authorFromPlatform(platform),
+    subreddit: extractSubreddit(sourceUrl),
+    post_snippet,
+    comments: estimateComments(velocity_score),
+    velocity_score,
+    velocity_tier,
+    tier,
+    created_at: lead.created_at,
+  };
+}
 
-    const recentWindowLikes = Math.round(likes * (0.25 + rand(5) * 0.55));
-    const recentWindowComments = Math.round(comments * (0.2 + rand(6) * 0.5));
+function alertToInsertRow(alert: PlugAlert, userId: string) {
+  const source_url = alert.source_url.trim();
+  const url = alert.url.trim() || source_url;
 
-    return {
-      id: `alert-${seed}-${index}`,
-      platform: template.platform,
-      postSnippet: template.snippet,
-      engagement: { likes, shares, comments, minutesSincePost },
-      recentWindowLikes,
-      recentWindowComments,
-    };
-  });
+  return {
+    user_id: userId,
+    lead_id: alert.lead_id,
+    url,
+    source_url,
+    content: alert.content ?? "",
+    platform: alert.platform,
+    author: alert.author ?? "",
+    subreddit: alert.subreddit,
+    post_snippet: alert.post_snippet,
+    comments: alert.comments ?? 0,
+    velocity_score: alert.velocity_score,
+    velocity_tier: alert.velocity_tier,
+    tier: alert.tier,
+  };
+}
+
+async function fetchAlertsFromDiscoveryLeads(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<PlugAlert[]> {
+  const { data, error } = await supabase
+    .from(DISCOVERY_LEADS_TABLE)
+    .select("id, platform, source_url, content, intent_score, created_at")
+    .eq("user_id", userId)
+    .in("status", ["active", "drafted", "replied"])
+    .not("source_url", "is", null)
+    .order("intent_score", { ascending: false })
+    .limit(30);
+
+  if (error) {
+    throw new PlugAlertsError(
+      `Failed to load discovery leads for plug radar: ${error.message}`,
+      500,
+      "discovery"
+    );
+  }
+
+  const alerts = (data ?? [])
+    .map((row) =>
+      mapDiscoveryLeadToPlugAlert(row as DiscoveryLeadAlertRow, userId)
+    )
+    .filter((alert): alert is PlugAlert => alert !== null);
+
+  alerts.sort((a, b) => b.velocity_score - a.velocity_score);
+  return alerts;
+}
+
+async function persistPlugAlerts(
+  supabase: SupabaseClient,
+  userId: string,
+  alerts: PlugAlert[]
+): Promise<void> {
+  const { error: deleteError } = await supabase
+    .from(PLUG_ALERTS_TABLE)
+    .delete()
+    .eq("user_id", userId);
+
+  if (deleteError) {
+    throw new PlugAlertsError(
+      `Failed to reset plug alerts: ${deleteError.message}`,
+      500,
+      "persist"
+    );
+  }
+
+  if (alerts.length === 0) return;
+
+  const rows = alerts.map((alert) => alertToInsertRow(alert, userId));
+
+  const { error: insertError } = await supabase
+    .from(PLUG_ALERTS_TABLE)
+    .insert(rows);
+
+  if (insertError) {
+    throw new PlugAlertsError(
+      `Failed to persist plug alerts: ${insertError.message}`,
+      500,
+      "persist"
+    );
+  }
+}
+
+function buildAntiAiDetectionBlock(): string {
+  return `CRITICAL ANTI-AI DETECTION RULES (mandatory):
+- NEVER use em-dashes (—) or en-dashes (–). Only commas, periods, or a basic hyphen (-).
+- BANNED WORDS/PHRASES: delve, leverage, maze, goldmine, unlock, supercharge, crucial, pain point, hope that helps, happy to help, game-changer, in conclusion, right?, remember.
+- Write lowercase-heavy, fragmented, casual developer voice. Use shortcuts like idk, tbh, imo, wdym when natural.
+- No bullet points, no bold, no corporate greetings or sign-offs.
+- Add a slight rough edge (missing apostrophe, trailing comma) so it reads human-posted.
+- No rhetorical opener/closer questions.`;
 }
 
 async function loadRequiredProductDna(
@@ -250,7 +355,7 @@ async function loadRequiredProductDna(
 
 async function generatePlugText(params: {
   dna: ProductDNA;
-  postSnippet: string;
+  post_snippet: string;
   platform: Platform;
 }): Promise<string> {
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -272,7 +377,7 @@ One-liner: ${params.dna.oneLiner}
 Platform: ${params.platform}
 
 Original thread snippet:
-${params.postSnippet}
+${params.post_snippet}
 
 Write a casual follow-up plug comment for peak-momentum deployment.`;
 
@@ -342,28 +447,83 @@ async function enrichHotAlerts(
   alerts: PlugAlert[],
   dna: ProductDNA
 ): Promise<PlugAlert[]> {
-  const hotAlerts = alerts.filter((alert) => alert.tier === "HOT");
+  const hotAlerts = alerts.filter(
+    (alert) => alert.velocity_tier === "HOT" || alert.tier === "HOT"
+  );
   if (hotAlerts.length === 0) return alerts;
 
   const plugTexts = await Promise.all(
     hotAlerts.map((alert) =>
       generatePlugText({
         dna,
-        postSnippet: alert.postSnippet,
+        post_snippet: alert.post_snippet,
         platform: alert.platform,
       })
     )
   );
 
   const plugById = new Map(
-    hotAlerts.map((alert, index) => [alert.id, plugTexts[index] ?? null])
+    hotAlerts.map((alert, index) => [alert.id, plugTexts[index] ?? ""])
   );
 
-  return alerts.map((alert) =>
-    alert.tier === "HOT"
-      ? { ...alert, plugText: plugById.get(alert.id) ?? null }
-      : alert
-  );
+  return alerts.map((alert) => {
+    const plug = plugById.get(alert.id);
+    if (!plug || (alert.velocity_tier !== "HOT" && alert.tier !== "HOT")) {
+      return alert;
+    }
+    return { ...alert, content: plug };
+  });
+}
+
+function latestScannedAt(alerts: PlugAlert[]): string {
+  if (alerts.length === 0) return new Date(0).toISOString();
+  return alerts.reduce((latest, row) =>
+    row.created_at > latest ? row.created_at : latest
+  , alerts[0].created_at);
+}
+
+export async function fetchUserPlugAlerts(
+  userId: string,
+  supabase: SupabaseClient
+): Promise<PlugAlertsResult> {
+  const dna = await loadRequiredProductDna(supabase, userId);
+
+  const { data, error } = await supabase
+    .from(PLUG_ALERTS_TABLE)
+    .select(PLUG_ALERTS_SELECT)
+    .eq("user_id", userId)
+    .order("velocity_score", { ascending: false });
+
+  if (error) {
+    throw new PlugAlertsError(
+      `Failed to load plug alerts: ${error.message}`,
+      500,
+      "fetch"
+    );
+  }
+
+  const rows = (data ?? []) as PlugAlertDbRow[];
+  const alerts = rows
+    .map((row) => {
+      try {
+        return mapDbRowToPlugAlert(row);
+      } catch (mapError) {
+        console.warn(
+          "[plug-alerts] Skipping row with invalid shape:",
+          row.id,
+          mapError
+        );
+        return null;
+      }
+    })
+    .filter((alert): alert is PlugAlert => alert !== null);
+
+  return {
+    alerts,
+    scannedAt: latestScannedAt(alerts),
+    productName: dna.productName,
+    productUrl: dna.url,
+  };
 }
 
 export async function executePlugAlertsScan(
@@ -371,37 +531,14 @@ export async function executePlugAlertsScan(
   supabase: SupabaseClient
 ): Promise<PlugAlertsResult> {
   const dna = await loadRequiredProductDna(supabase, userId);
-  const simulated = buildSimulatedPosts(dna, userId);
-
-  const alerts: PlugAlert[] = simulated.map((post) => {
-    const velocityScore = calculateVelocityScore(post.engagement, {
-      likes: post.recentWindowLikes,
-      comments: post.recentWindowComments,
-    });
-    const tier = intentTierFromScore(velocityScore);
-
-    return {
-      id: post.id,
-      platform: post.platform,
-      postSnippet: post.postSnippet,
-      velocityScore,
-      tier,
-      statusIndicator: buildStatusIndicator(tier, velocityScore),
-      plugText: null,
-      engagement: post.engagement,
-      trackedUrl: dna.url,
-      source_url: buildAlertSourceUrl(post.platform, post.id),
-      author: authorFromPlatform(post.platform),
-    };
-  });
-
-  alerts.sort((a, b) => b.velocityScore - a.velocityScore);
-
+  const alerts = await fetchAlertsFromDiscoveryLeads(supabase, userId);
   const enriched = await enrichHotAlerts(alerts, dna);
+
+  await persistPlugAlerts(supabase, userId, enriched);
 
   return {
     alerts: enriched,
-    scannedAt: new Date().toISOString(),
+    scannedAt: latestScannedAt(enriched),
     productName: dna.productName,
     productUrl: dna.url,
   };
