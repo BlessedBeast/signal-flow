@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Loader2, Zap } from "lucide-react";
@@ -10,6 +10,8 @@ import {
   FadeUp,
 } from "@/components/marketing/fade-up";
 import { HeroStatStrip } from "@/components/marketing/hero-stats";
+import { HookResultsModal } from "@/components/marketing/hook-results-modal";
+import { HookScrollIntercept } from "@/components/marketing/hook-scroll-intercept";
 import { MicroAuditModal } from "@/components/marketing/micro-audit-modal";
 import { AEOSection } from "@/components/sections/aeo-section";
 import { Arsenal } from "@/components/sections/arsenal";
@@ -28,6 +30,7 @@ function HomeSectionDivider() {
 }
 import { UrlAuditHeroForm } from "@/components/marketing/url-audit-hero-form";
 import type { MicroAuditResult } from "@/lib/micro-audit/types";
+import { isHookAuditUsed } from "@/lib/onboard/hook-types";
 import { savePendingMicroAudit } from "@/lib/micro-audit/storage";
 import { Button } from "@/components/ui/button";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
@@ -88,6 +91,10 @@ export default function HomePage() {
   const [navScrolled, setNavScrolled] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditResult, setAuditResult] = useState<MicroAuditResult | null>(null);
+  const [hookInterceptOpen, setHookInterceptOpen] = useState(false);
+  const [hookResultsOpen, setHookResultsOpen] = useState(false);
+  const [hookAuditUrl, setHookAuditUrl] = useState<string | null>(null);
+  const hookScrollTriggered = useRef(false);
 
   function handleAuditComplete(result: MicroAuditResult) {
     savePendingMicroAudit({
@@ -139,6 +146,52 @@ export default function HomePage() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (hasSession || checkingSession) return;
+
+    const onScrollDepth = () => {
+      if (hookScrollTriggered.current) return;
+      if (isHookAuditUsed()) return;
+      if (hookInterceptOpen || hookResultsOpen) return;
+
+      const docHeight =
+        document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) return;
+
+      const ratio = window.scrollY / docHeight;
+      if (ratio < 0.35) return;
+
+      hookScrollTriggered.current = true;
+      setHookInterceptOpen(true);
+    };
+
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(() => {
+        onScrollDepth();
+        ticking = false;
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScrollDepth();
+
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [
+    hasSession,
+    checkingSession,
+    hookInterceptOpen,
+    hookResultsOpen,
+  ]);
+
+  function handleHookInterceptSubmit(url: string) {
+    setHookInterceptOpen(false);
+    setHookAuditUrl(url);
+    setHookResultsOpen(true);
+  }
 
   if (checkingSession) {
     return (
@@ -273,6 +326,21 @@ export default function HomePage() {
         open={auditOpen}
         result={auditResult}
         onClose={() => setAuditOpen(false)}
+      />
+
+      <HookScrollIntercept
+        open={hookInterceptOpen}
+        onClose={() => setHookInterceptOpen(false)}
+        onSubmit={handleHookInterceptSubmit}
+      />
+
+      <HookResultsModal
+        open={hookResultsOpen}
+        url={hookAuditUrl}
+        onClose={() => {
+          setHookResultsOpen(false);
+          setHookAuditUrl(null);
+        }}
       />
     </div>
   );

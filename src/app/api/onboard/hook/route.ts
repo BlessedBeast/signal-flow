@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { checkHookRateLimit, getClientIp } from "@/lib/onboard/hook-rate-limit";
 import { scrapeWithJina } from "@/lib/onboard-pipeline";
 import {
   fetchSerperQuery,
@@ -240,6 +241,12 @@ async function callOpenAI<T>(params: {
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
+    const rateCheck = await checkHookRateLimit(clientIp);
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: rateCheck.error }, { status: 429 });
+    }
+
     const body = await request.json().catch(() => ({}));
     const parsedBody = hookRequestSchema.safeParse(body);
     if (!parsedBody.success) {
