@@ -10,9 +10,8 @@ import {
   FadeUp,
 } from "@/components/marketing/fade-up";
 import { HeroStatStrip } from "@/components/marketing/hero-stats";
-import { HookResultsModal } from "@/components/marketing/hook-results-modal";
+import { ForensicAuditModal } from "@/components/marketing/forensic-audit-modal";
 import { HookScrollIntercept } from "@/components/marketing/hook-scroll-intercept";
-import { MicroAuditModal } from "@/components/marketing/micro-audit-modal";
 import { AEOSection } from "@/components/sections/aeo-section";
 import { Arsenal } from "@/components/sections/arsenal";
 import { CompoundingCurve } from "@/components/sections/compounding-curve";
@@ -29,9 +28,7 @@ function HomeSectionDivider() {
   );
 }
 import { UrlAuditHeroForm } from "@/components/marketing/url-audit-hero-form";
-import type { MicroAuditResult } from "@/lib/micro-audit/types";
 import { isHookAuditUsed } from "@/lib/onboard/hook-types";
-import { savePendingMicroAudit } from "@/lib/micro-audit/storage";
 import { Button } from "@/components/ui/button";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { cn } from "@/lib/utils";
@@ -89,22 +86,14 @@ export default function HomePage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [hasSession, setHasSession] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
-  const [auditOpen, setAuditOpen] = useState(false);
-  const [auditResult, setAuditResult] = useState<MicroAuditResult | null>(null);
   const [hookInterceptOpen, setHookInterceptOpen] = useState(false);
-  const [hookResultsOpen, setHookResultsOpen] = useState(false);
-  const [hookAuditUrl, setHookAuditUrl] = useState<string | null>(null);
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditUrl, setAuditUrl] = useState<string | null>(null);
   const hookScrollTriggered = useRef(false);
 
-  function handleAuditComplete(result: MicroAuditResult) {
-    savePendingMicroAudit({
-      url: result.teaser.url,
-      teaser: result.teaser,
-      dna: result.dna,
-      savedAt: new Date().toISOString(),
-    });
-    setAuditResult(result);
-    setAuditOpen(true);
+  function openForensicAudit(url: string) {
+    setAuditUrl(url);
+    setAuditModalOpen(true);
   }
 
   useEffect(() => {
@@ -153,7 +142,7 @@ export default function HomePage() {
     const onScrollDepth = () => {
       if (hookScrollTriggered.current) return;
       if (isHookAuditUsed()) return;
-      if (hookInterceptOpen || hookResultsOpen) return;
+      if (hookInterceptOpen || auditModalOpen) return;
 
       const docHeight =
         document.documentElement.scrollHeight - window.innerHeight;
@@ -184,13 +173,12 @@ export default function HomePage() {
     hasSession,
     checkingSession,
     hookInterceptOpen,
-    hookResultsOpen,
+    auditModalOpen,
   ]);
 
   function handleHookInterceptSubmit(url: string) {
     setHookInterceptOpen(false);
-    setHookAuditUrl(url);
-    setHookResultsOpen(true);
+    openForensicAudit(url);
   }
 
   if (checkingSession) {
@@ -277,7 +265,7 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <UrlAuditHeroForm onAuditComplete={handleAuditComplete} />
+                    <UrlAuditHeroForm onSubmitUrl={openForensicAudit} />
                     <p className="text-center text-xs text-muted-foreground">
                       Already have an account?{" "}
                       <Link
@@ -322,24 +310,18 @@ export default function HomePage() {
         <FinalCTA hasSession={hasSession} />
       </main>
 
-      <MicroAuditModal
-        open={auditOpen}
-        result={auditResult}
-        onClose={() => setAuditOpen(false)}
-      />
-
       <HookScrollIntercept
         open={hookInterceptOpen}
         onClose={() => setHookInterceptOpen(false)}
         onSubmit={handleHookInterceptSubmit}
       />
 
-      <HookResultsModal
-        open={hookResultsOpen}
-        url={hookAuditUrl}
+      <ForensicAuditModal
+        open={auditModalOpen}
+        url={auditUrl}
         onClose={() => {
-          setHookResultsOpen(false);
-          setHookAuditUrl(null);
+          setAuditModalOpen(false);
+          setAuditUrl(null);
         }}
       />
     </div>
