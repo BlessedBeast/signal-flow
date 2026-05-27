@@ -115,34 +115,48 @@ function InboundMockup() {
 }
 
 function GeoMockup() {
-  const rows = [
-    { name: "Perplexity", pct: "78%", status: "Indexed" },
-    { name: "ChatGPT", pct: "64%", status: "Indexed" },
-    { name: "Gemini", pct: "51%", status: "Pending" },
+  const seeds = [
+    {
+      num: "01",
+      query: "What's the best tool for Reddit marketing automation?",
+      tag: "FAQ Schema",
+    },
+    {
+      num: "02",
+      query: "How do indie hackers find leads without cold email?",
+      tag: "HowTo Schema",
+    },
+    {
+      num: "03",
+      query: "Best organic growth tools for solo founders 2025",
+      tag: "Article Schema",
+    },
   ] as const;
 
   return (
     <div className={INNER_MOCK}>
-      <p className="mb-2 font-mono text-xs uppercase text-muted-foreground">
-        GEO SEED STATUS
+      <p className="mb-2 font-mono text-[10px] uppercase text-muted-foreground">
+        SEMANTIC SEEDS GENERATED
       </p>
-      {rows.map((row) => (
+      {seeds.map((seed) => (
         <div
-          key={row.name}
-          className="flex items-center justify-between gap-3 py-1.5"
+          key={seed.num}
+          className="flex items-start gap-2 border-b border-white/[0.05] py-1.5 last:border-0"
         >
-          <span className="text-xs font-medium text-foreground">{row.name}</span>
-          <div className="flex items-center gap-2">
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-border">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: row.pct }}
-              />
-            </div>
-            <span className="text-xs text-muted-foreground">{row.status}</span>
-          </div>
+          <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground">
+            {seed.num}
+          </span>
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+            {seed.query}
+          </p>
+          <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] text-primary">
+            {seed.tag}
+          </span>
         </div>
       ))}
+      <p className="mt-3 font-mono text-[10px] text-muted-foreground">
+        3 of 12 seeds active · 217 entities indexed
+      </p>
     </div>
   );
 }
@@ -201,20 +215,34 @@ function SideCarsMockup() {
 type BentoCardProps = {
   tag: string;
   title: string;
-  body: string;
+  bodyLine1: string;
+  bodyLine2: string;
   mockup: React.ReactNode;
   className?: string;
   delay: number;
 };
 
-function BentoCard({ tag, title, body, mockup, className, delay }: BentoCardProps) {
+function BentoCard({
+  tag,
+  title,
+  bodyLine1,
+  bodyLine2,
+  mockup,
+  className,
+  delay,
+}: BentoCardProps) {
   return (
     <FadeUp delay={delay} className={cn(GLASS_CARD, className)}>
       <p className="font-mono text-xs uppercase text-muted-foreground">{tag}</p>
       <h3 className="mt-2 text-base font-bold tracking-tight text-foreground">
         {title}
       </h3>
-      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        {bodyLine1}
+      </p>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {bodyLine2}
+      </p>
       {mockup}
     </FadeUp>
   );
@@ -238,7 +266,8 @@ export function Arsenal() {
           <BentoCard
             tag="CORE ENGINE"
             title="Your AI CMO. Checks in every morning."
-            body="Reads live web data. Outputs 2 pre-written tasks. You execute in 30 seconds."
+            bodyLine1="Two pre-written tasks. Every day."
+            bodyLine2="Based on live web scraping. Zero effort."
             mockup={<ReflectionMockup />}
             className="lg:col-span-7"
             delay={0}
@@ -246,7 +275,8 @@ export function Arsenal() {
           <BentoCard
             tag="CONTENT LAB"
             title="Raw commits → viral personal brand."
-            body="Turns your git history into 4-part storytelling loops for X and LinkedIn."
+            bodyLine1="Git history becomes a 4-part story."
+            bodyLine2="Posted to X and LinkedIn automatically."
             mockup={<BipMockup />}
             className="lg:col-span-5"
             delay={0.07}
@@ -254,15 +284,17 @@ export function Arsenal() {
           <BentoCard
             tag="REPLY LAB"
             title="50 replies. Batch approved. 90 seconds."
-            body="Paste raw notifications. Pick a Growth Posture. AI writes every reply."
+            bodyLine1="Paste notifications. Pick a posture."
+            bodyLine2="AI writes every reply. You approve."
             mockup={<InboundMockup />}
             className="lg:col-span-5"
             delay={0.14}
           />
           <BentoCard
             tag="AEO LAB"
-            title="Rank inside AI. Before your competitors wake up."
-            body="Generates Answer Engine Optimization markup so Perplexity, Gemini, and ChatGPT cite your site as the source."
+            title="Rank inside AI before competitors wake up."
+            bodyLine1="Semantic markup that trains Perplexity,"
+            bodyLine2="ChatGPT, and Gemini to cite you first."
             mockup={<GeoMockup />}
             className="lg:col-span-7"
             delay={0.21}
@@ -272,14 +304,17 @@ export function Arsenal() {
               LEAD CAPTURE LAB
             </p>
             <h3 className="mt-2 text-base font-bold tracking-tight text-foreground">
-              Micro-tools that harvest emails while you sleep.
+              Micro-tools that harvest emails while you ship.
             </h3>
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <p className="text-sm text-muted-foreground">
-                Spins up programmatic lead magnets — calculators, audits,
-                checklists — each one a targeted email capture machine. You
-                approve the idea. AI builds it.
-              </p>
+              <div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Approve the idea. AI builds the tool.
+                </p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Calculators, audits, checklists. On autopilot.
+                </p>
+              </div>
               <SideCarsMockup />
             </div>
           </FadeUp>

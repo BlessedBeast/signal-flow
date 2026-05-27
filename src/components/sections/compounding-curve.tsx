@@ -108,18 +108,27 @@ function MetricStrip({
   positive: boolean;
 }) {
   return (
-    <div className="mt-5 grid grid-cols-3 gap-3 border-t border-white/[0.05] pt-5">
-      {cols.map((col) => (
-        <div key={col.label}>
+    <div className="mt-6 grid grid-cols-1 gap-4 border-t border-white/[0.08] pt-6 sm:grid-cols-3 sm:gap-0">
+      {cols.map((col, index) => (
+        <div
+          key={col.label}
+          className={cn(
+            index === 0 && "sm:pr-4",
+            index === 1 &&
+              "sm:border-x sm:border-white/[0.06] sm:px-4 sm:py-0 py-0",
+            index === 2 && "sm:pl-4",
+            index > 0 && "border-t border-white/[0.06] pt-4 sm:border-t-0 sm:pt-0"
+          )}
+        >
           <p
             className={cn(
-              "text-2xl font-extrabold tracking-tight",
+              "mb-1 text-5xl font-extrabold tracking-tight",
               positive ? "text-primary" : "text-destructive"
             )}
           >
             {col.value}
           </p>
-          <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="max-w-[80px] font-mono text-[10px] uppercase leading-snug tracking-wider text-muted-foreground">
             {col.label}
           </p>
         </div>

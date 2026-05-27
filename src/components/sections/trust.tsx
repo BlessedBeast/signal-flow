@@ -10,17 +10,17 @@ const PILLARS = [
   {
     icon: "⚙",
     title: "Strict Tone Guardrails",
-    body: "Every reply trained on community-first language. No spam patterns. Ever.",
+    body: "Replies trained on 10,000+ successful Reddit threads. Our model knows the difference between helpful and spammy. Community mods don't flag us. Ever.",
   },
   {
     icon: "✓",
     title: "Human Approval Required",
-    body: "Nothing posts automatically. Speed of AI. Judgment of a founder.",
+    body: "Nothing posts without your tap. We pre-write. You decide. Speed of AI. Judgment of a founder who actually cares about their reputation.",
   },
   {
     icon: "◎",
-    title: "Platform-Compliant",
-    body: "Knows subreddit rules per community. Mods see a helpful founder, not a bot.",
+    title: "Platform-Compliant by Design",
+    body: "Subreddit rules are read and respected per community. r/SaaS gets different tone calibration than r/entrepreneur. You look like a native. Always.",
   },
 ] as const;
 

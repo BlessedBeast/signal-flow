@@ -10,6 +10,7 @@ const geoSeedItemSchema = z.object({
   keywordAnchor: z.string().min(1),
   distributionTarget: z.string().min(1),
   seedNarrative: z.string().min(1),
+  jsonLdSchema: z.string().min(1),
 });
 
 const geoSeedsResponseSchema = z.object({
@@ -80,7 +81,8 @@ OUTPUT FORMAT (strict JSON only, no markdown fences):
     {
       "keywordAnchor": "...",
       "distributionTarget": "...",
-      "seedNarrative": "..."
+      "seedNarrative": "...",
+      "jsonLdSchema": "..."
     }
   ]
 }
@@ -106,6 +108,13 @@ FIELD RULES:
   - No bubbly marketing jargon (delve, leverage, unlock, game-changer, revolutionary, seamless).
   - Prefer lowercase-heavy, conversational rough edges (slight imperfection ok).
   - Sound like a builder sharing what actually worked, not a brand account.
+
+4. jsonLdSchema
+- You must generate a completely valid, raw, un-nested <script type='application/ld+json'> code block as a single string value.
+- Use schema.org typings like FAQPage, TechArticle, or SoftwareApplication that programmatically connect the user's productName and website url (from PRODUCT DNA) to structural keyword anchors aligned with keywordAnchor.
+- The string must include the full opening and closing script tags and valid JSON inside the script element.
+- Do not encapsulate this string value in markdown code blocks inside the JSON payload (no triple backticks).
+- Escape inner quotes properly so the parent JSON response remains valid.
 
 Return exactly 3 seeds. Each seed must be meaningfully distinct in keywordAnchor and distributionTarget.`;
 }
@@ -186,6 +195,7 @@ Generate exactly 3 GEO Footprint Seeds for this product.`;
       body: JSON.stringify({
         model: OPENAI_MODEL,
         temperature: 0.75,
+        max_tokens: 4096,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
@@ -262,6 +272,7 @@ async function persistGeoSeedsBatch(params: {
     keyword_anchor: seed.keywordAnchor,
     distribution_target: seed.distributionTarget,
     seed_narrative: seed.seedNarrative,
+    json_ld_schema: seed.jsonLdSchema,
   }));
 
   console.log(

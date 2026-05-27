@@ -15,7 +15,17 @@ import { AEOSection } from "@/components/sections/aeo-section";
 import { Arsenal } from "@/components/sections/arsenal";
 import { CompoundingCurve } from "@/components/sections/compounding-curve";
 import { FinalCTA } from "@/components/sections/final-cta";
+import { ProductProof } from "@/components/sections/product-proof";
+import { SocialProof } from "@/components/sections/social-proof";
 import { Trust } from "@/components/sections/trust";
+
+function HomeSectionDivider() {
+  return (
+    <div className="mx-auto max-w-5xl px-6 py-2">
+      <div className="border-t border-white/[0.06]" />
+    </div>
+  );
+}
 import { UrlAuditHeroForm } from "@/components/marketing/url-audit-hero-form";
 import type { MicroAuditResult } from "@/lib/micro-audit/types";
 import { savePendingMicroAudit } from "@/lib/micro-audit/storage";
@@ -241,24 +251,19 @@ export default function HomePage() {
           </div>
         </section>
 
+        <ProductProof />
+        <SocialProof />
+
+        <HomeSectionDivider />
         <CompoundingCurve />
 
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="border-t border-white/[0.06]" />
-        </div>
-
+        <HomeSectionDivider />
         <AEOSection />
 
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="border-t border-white/[0.06]" />
-        </div>
-
+        <HomeSectionDivider />
         <Arsenal />
 
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="border-t border-white/[0.06]" />
-        </div>
-
+        <HomeSectionDivider />
         <Trust />
 
         <FinalCTA hasSession={hasSession} />
