@@ -122,7 +122,7 @@ export function MasterBlueprintView() {
         </p>
         <p className="mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
           Complete vault onboarding to generate your north-star growth roadmap.
-          Hobbyist and paid plans both receive a full blueprint.
+          Every subscription tier receives a full blueprint.
         </p>
         <Button asChild className="mt-6" size="lg">
           <Link href="/onboarding">Run onboarding</Link>
