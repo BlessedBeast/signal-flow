@@ -14,12 +14,12 @@ type TeaserSuccess = {
   ok: true;
   teaser: {
     productName: string;
-    category: string;
-    audience: string;
+    primaryLeakPlatform: string;
+    missedTrafficVolume: string;
+    highestIntentThreadTitle: string;
     url: string;
   };
   dna: import("@/lib/signalflow-types").ProductDNA;
-  competitors: string[];
   previewLeads: import("@/lib/micro-audit/types").MicroAuditPreviewLead[];
 };
 
@@ -50,7 +50,6 @@ export async function POST(request: Request) {
       ok: true,
       teaser: result.teaser,
       dna: result.dna,
-      competitors: result.competitors,
       previewLeads: result.previewLeads,
     };
 

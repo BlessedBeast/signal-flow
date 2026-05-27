@@ -1,3 +1,5 @@
+import type { SubscriptionTierId } from "@/lib/billing/tiers";
+
 export const PLATFORMS = [
   "reddit",
   "x",
@@ -68,6 +70,7 @@ export type Profile = {
   is_mining: boolean;
   product_dna: ProductDNA | null;
   competitor_battlecards: CompetitorBattlecards;
+  subscription_tier: SubscriptionTierId;
 };
 
 export const initialDNA: ProductDNA = {

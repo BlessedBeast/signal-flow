@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import { fetchUserSubscriptionTier } from "@/lib/billing/user-billing";
+import {
+  reflectionTaskPromptLine,
+  resolveDailyReflectionTaskLimit,
+  type SubscriptionTierId,
+} from "@/lib/billing/tiers";
 import {
   fetchCoreFrameworkCatalog,
   fetchUserBlueprint,
@@ -17,8 +23,6 @@ import { supabaseServer } from "@/lib/supabase-server";
 const OPENAI_MODEL = "gpt-4o";
 const TASK_HISTORY_LIMIT = 5;
 const LIVE_STREAM_LIMIT = 5;
-const TASKS_TO_GENERATE = 2;
-
 const reflectionTaskSchema = z.object({
   action_type: z.string().min(1),
   target_community: z.string().min(1),
@@ -26,9 +30,9 @@ const reflectionTaskSchema = z.object({
   ai_generated_draft: z.string().min(1),
 });
 
-const reflectionTasksSchema = z
-  .array(reflectionTaskSchema)
-  .length(TASKS_TO_GENERATE);
+function createReflectionTasksSchema(taskCount: number) {
+  return z.array(reflectionTaskSchema).length(taskCount);
+}
 
 export type ReflectionTask = z.infer<typeof reflectionTaskSchema>;
 
@@ -305,8 +309,11 @@ function buildHistorySummary(rows: TaskHistoryRow[]): string {
 function buildSystemPrompt(
   frameworks: Record<string, unknown>[],
   hasLiveStream: boolean,
-  masterBlueprintBlock: string | null
+  masterBlueprintBlock: string | null,
+  taskCount: number,
+  tier: SubscriptionTierId
 ): string {
+  const taskInstruction = reflectionTaskPromptLine(tier);
   const blueprintSection = masterBlueprintBlock
     ? `\n\n${masterBlueprintBlock}\n`
     : "";
@@ -315,7 +322,7 @@ function buildSystemPrompt(
 
 You receive: App DNA, the user's Master Strategy Blueprint (when present), internal growth playbooks (core frameworks), yesterday's execution history, and a live scraper data stream from discovery_leads and plug_alerts.
 ${blueprintSection}
-Your job: output exactly ${TASKS_TO_GENERATE} fresh, logical marketing tasks for TODAY.
+Your job: ${taskInstruction} Output exactly ${taskCount} fresh, logical marketing tasks for TODAY.
 
 ${
   masterBlueprintBlock
@@ -353,7 +360,7 @@ OUTPUT FORMAT — raw JSON array only, no markdown fences, no wrapper object:
   }
 ]
 
-Return exactly ${TASKS_TO_GENERATE} objects in the array.`;
+Return exactly ${taskCount} objects in the array.`;
 }
 
 async function fetchTaskHistory(userId: string): Promise<TaskHistoryRow[]> {
@@ -400,7 +407,11 @@ async function generateTasksWithOpenAI(params: {
   liveStreamBlock: string;
   hasLiveStream: boolean;
   masterBlueprintBlock: string | null;
+  taskCount: number;
+  tier: SubscriptionTierId;
 }): Promise<ReflectionTask[]> {
+  const { taskCount, tier } = params;
+  const reflectionTasksSchema = createReflectionTasksSchema(taskCount);
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
@@ -413,7 +424,7 @@ ${params.liveStreamBlock}
 YESTERDAY / RECENT EXECUTION HISTORY (newest tasks first in list):
 ${params.historySummary}
 
-Generate today's ${TASKS_TO_GENERATE} adaptive marketing tasks.`;
+${reflectionTaskPromptLine(tier)}`;
 
   let response: Response;
   try {
@@ -433,7 +444,9 @@ Generate today's ${TASKS_TO_GENERATE} adaptive marketing tasks.`;
             content: buildSystemPrompt(
               params.frameworks,
               params.hasLiveStream,
-              params.masterBlueprintBlock
+              params.masterBlueprintBlock,
+              taskCount,
+              tier
             ),
           },
           { role: "user", content: userPrompt },
@@ -532,12 +545,14 @@ export async function processUserReflection(params: {
     };
   }
 
-  const [history, liveStream, blueprintContext] = await Promise.all([
+  const [history, liveStream, blueprintContext, tier] = await Promise.all([
     fetchTaskHistory(userId),
     fetchLiveScraperStream(userId, dna.targetPlatforms),
     loadMasterBlueprintContext(userId),
+    fetchUserSubscriptionTier(supabaseServer, userId),
   ]);
 
+  const taskCount = resolveDailyReflectionTaskLimit(tier);
   const historySummary = buildHistorySummary(history);
   const liveStreamBlock = buildLiveStreamBlock(liveStream);
   const tasks = await generateTasksWithOpenAI({
@@ -547,6 +562,8 @@ export async function processUserReflection(params: {
     liveStreamBlock,
     hasLiveStream: liveStream.length > 0,
     masterBlueprintBlock: blueprintContext.promptBlock,
+    taskCount,
+    tier,
   });
   const inserted = await insertReflectionTasks(userId, tasks);
 

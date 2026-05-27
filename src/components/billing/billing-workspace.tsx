@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { getAuthHeaders } from "@/lib/api-auth";
 import {
   BILLING_TIERS,
+  getBillingTier,
   type BillingTierDefinition,
   type SubscriptionTierId,
 } from "@/lib/billing/tiers";
@@ -47,8 +48,8 @@ function QuotaMeter({ billing }: { billing: UserBillingContext }) {
             Leads
           </p>
           <p className="mt-1 font-mono text-[11px] uppercase tracking-tight text-muted-foreground">
-            {billing.cycleLabel} · {billing.tierName} · Daily drop batch{" "}
-            {billing.dailyDropQuota}
+            {billing.cycleLabel} · {billing.tierName} · {billing.dailyDropQuota}{" "}
+            leads/day · {billing.dailyReflectionTaskLimit} AI tasks/day
           </p>
         </div>
         <p className="font-mono text-2xl font-bold tracking-tight text-foreground">
@@ -78,8 +79,9 @@ function QuotaMeter({ billing }: { billing: UserBillingContext }) {
         <span className="font-medium text-foreground">
           {billing.tierName}
         </span>{" "}
-        plan via the Daily Drop engine ({billing.dailyDropQuota} leads released
-        per drop). Upgrade before you hit the cap to keep the Hunter running.
+        plan: up to {billing.dailyDropQuota} leads released per daily drop and{" "}
+        {billing.dailyReflectionTaskLimit} reflection tasks per cron cycle.
+        Upgrade before you hit the cap to keep the Hunter running.
       </p>
     </section>
   );
@@ -202,8 +204,10 @@ export function BillingWorkspace() {
     if (!billing || tierId === billing.tier) return;
     setCheckoutLoading(tierId);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      toast.info("Stripe Checkout will be wired for this tier.");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      toast.info("Stripe Checkout Coming Soon", {
+        description: `${getBillingTier(tierId).name} checkout launches next.`,
+      });
     } finally {
       setCheckoutLoading(null);
     }
@@ -240,11 +244,13 @@ export function BillingWorkspace() {
           Account workspace
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Pricing & billing
+          Execution tiers
         </h1>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Map your ledger quota to a tier. Stripe checkout and portal hooks land
-          on these cards next.
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          Pick the tier that matches your distribution velocity. Hobbyist proves
+          the loop with one lead and one task per day. Indie Builder scales
+          mining and unlocks BIP. Growth Studio runs programmatic SEO labs and
+          the inbound replier at full burner.
         </p>
         <Link
           href="/profile"
@@ -258,13 +264,14 @@ export function BillingWorkspace() {
 
       <section className="space-y-6">
         <div className="max-w-2xl">
-          <MonoEyebrow>VelocityHub plans</MonoEyebrow>
+          <MonoEyebrow>Value stack</MonoEyebrow>
           <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            Three tiers. One distribution stack.
+            More leads, more tasks, more modules — same DNA vault.
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Free Hobbyist gets you mining. Indie Pro unlocks the Megaphone and
-            BIP memory. Growth Studio runs omnichannel at full burner velocity.
+            Start free with proof-of-fit limits. Upgrade when daily execution
+            outgrows a single lead and a single task. Growth Studio is for teams
+            running GEO Seeds, Side-Cars, and 1-Click Inbound at scale.
           </p>
         </div>
 

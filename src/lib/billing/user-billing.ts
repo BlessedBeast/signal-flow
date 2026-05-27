@@ -5,6 +5,7 @@ import {
   getBillingTier,
   parseSubscriptionTier,
   resolveDailyDropQuota,
+  resolveDailyReflectionTaskLimit,
   resolveMonthlyLeadCap,
   type SubscriptionTierId,
 } from "@/lib/billing/tiers";
@@ -14,6 +15,7 @@ export type UserBillingContext = {
   tier: SubscriptionTierId;
   tierName: string;
   dailyDropQuota: number;
+  dailyReflectionTaskLimit: number;
   monthlyLeadCap: number;
   leadsUsed: number;
   cycleStart: string;
@@ -79,6 +81,7 @@ export async function resolveUserBillingContext(
     tier,
     tierName: tierDef.name,
     dailyDropQuota: resolveDailyDropQuota(tier),
+    dailyReflectionTaskLimit: resolveDailyReflectionTaskLimit(tier),
     monthlyLeadCap: resolveMonthlyLeadCap(tier),
     leadsUsed,
     cycleStart: cycleStartDate.toISOString(),

@@ -13,6 +13,7 @@ import {
   type SetStateAction,
 } from "react";
 
+import { parseSubscriptionTier } from "@/lib/billing/tiers";
 import { DAILY_LIMIT } from "@/lib/discovery/constants";
 import { safeParseProductDna } from "@/lib/product-dna-schema";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
@@ -68,6 +69,7 @@ const EMPTY_PROFILE: Profile = {
   is_mining: false,
   product_dna: null,
   competitor_battlecards: {},
+  subscription_tier: "hobbyist",
 };
 
 function parseProductDnaFromDb(raw: unknown): ProductDNA | null {
@@ -238,7 +240,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("is_mining, product_dna, competitor_battlecards")
+        .select("is_mining, product_dna, competitor_battlecards, subscription_tier")
         .eq("id", session.user.id)
         .maybeSingle();
 
@@ -254,6 +256,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
         competitor_battlecards: parseBattlecardsFromDb(
           data?.competitor_battlecards
         ),
+        subscription_tier: parseSubscriptionTier(data?.subscription_tier),
       };
 
       setProfileState(nextProfile);

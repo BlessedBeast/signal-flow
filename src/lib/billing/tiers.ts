@@ -1,4 +1,7 @@
-export type SubscriptionTierId = "hobbyist" | "indie_pro" | "growth_studio";
+export type SubscriptionTierId =
+  | "hobbyist"
+  | "indie_builder"
+  | "growth_studio";
 
 export type BillingTierDefinition = {
   id: SubscriptionTierId;
@@ -7,10 +10,18 @@ export type BillingTierDefinition = {
   priceCents: number;
   monthlyLeadCap: number;
   dailyDropQuota: number;
+  dailyReflectionTaskLimit: number;
   dailyDropsLabel: string;
   features: string[];
   highlighted?: boolean;
   ctaLabel: string;
+};
+
+/** Ordered lowest → highest for access checks. */
+export const TIER_RANK: Record<SubscriptionTierId, number> = {
+  hobbyist: 0,
+  indie_builder: 1,
+  growth_studio: 2,
 };
 
 export const BILLING_TIERS: BillingTierDefinition[] = [
@@ -21,47 +32,54 @@ export const BILLING_TIERS: BillingTierDefinition[] = [
     priceCents: 0,
     monthlyLeadCap: 30,
     dailyDropQuota: 1,
-    dailyDropsLabel: "1 daily drop",
+    dailyReflectionTaskLimit: 1,
+    dailyDropsLabel: "1 lead / day",
     features: [
-      "30 leads/mo ledger cap",
-      "Basic Reddit intent scanning",
-      "Capped 1-Click inbound processing",
-      "Product DNA vault storage",
+      "Core dashboard + lead stream",
+      "1 qualified lead released per day",
+      "1 AI daily execution task",
+      "Product DNA vault + master blueprint",
+      "Perfect for validating distribution fit",
     ],
     ctaLabel: "Current plan",
   },
   {
-    id: "indie_pro",
-    name: "Indie Pro",
-    priceLabel: "$29/mo",
-    priceCents: 2900,
+    id: "indie_builder",
+    name: "Indie Builder",
+    priceLabel: "$49/mo",
+    priceCents: 4900,
     monthlyLeadCap: 450,
     dailyDropQuota: 15,
-    dailyDropsLabel: "15 daily drops",
+    dailyReflectionTaskLimit: 3,
+    dailyDropsLabel: "15 leads / day",
     highlighted: true,
     features: [
-      "450 leads/mo ledger cap",
-      "Full Reddit + Hacker News radar",
-      "The Megaphone Plug Alerts (HOT/WARM)",
+      "Everything in Hobbyist",
+      "15 high-intent leads per day",
+      "3 AI daily execution tasks",
       "BIP Storyteller memory ledger",
-      "Chronological Daily Drop releases",
+      "Plug Alerts → live lead promotion",
+      "Megaphone velocity workflows",
     ],
-    ctaLabel: "Upgrade to Indie Pro",
+    ctaLabel: "Upgrade to Indie Builder",
   },
   {
     id: "growth_studio",
     name: "Growth Studio",
-    priceLabel: "$79/mo",
-    priceCents: 7900,
-    monthlyLeadCap: 900,
-    dailyDropQuota: 30,
-    dailyDropsLabel: "30 daily drops",
+    priceLabel: "$149/mo",
+    priceCents: 14900,
+    monthlyLeadCap: 999_999,
+    dailyDropQuota: 100,
+    dailyReflectionTaskLimit: 5,
+    dailyDropsLabel: "Unlimited lead velocity",
     features: [
-      "900 leads/mo ledger cap",
-      "Omnichannel tracking (X, LinkedIn, Product Hunt)",
-      "Unlimited 50+ bulk notification burner passes",
-      "All Velocity Hub + Growth Labs modules",
-      "Priority circuit-breaker queue headroom",
+      "Everything in Indie Builder",
+      "Unlimited daily lead drops (100/batch cap)",
+      "5 AI daily execution tasks",
+      "GEO Seeds programmatic SEO lab",
+      "Side-Cars distribution experiments",
+      "1-Click Inbound Replier",
+      "Omnichannel burner + priority queue",
     ],
     ctaLabel: "Upgrade to Growth Studio",
   },
@@ -71,22 +89,54 @@ const TIER_BY_ID = Object.fromEntries(
   BILLING_TIERS.map((tier) => [tier.id, tier])
 ) as Record<SubscriptionTierId, BillingTierDefinition>;
 
+/** Legacy DB value `indie_pro` maps to Indie Builder. */
 export function parseSubscriptionTier(raw: unknown): SubscriptionTierId {
-  if (raw === "indie_pro" || raw === "growth_studio") {
-    return raw;
+  if (raw === "indie_builder" || raw === "indie_pro") {
+    return "indie_builder";
+  }
+  if (raw === "growth_studio") {
+    return "growth_studio";
   }
   return "hobbyist";
 }
 
-export function getBillingTier(tierId: SubscriptionTierId): BillingTierDefinition {
-  return TIER_BY_ID[tierId];
+export function getBillingTier(
+  tierId: SubscriptionTierId = "hobbyist"
+): BillingTierDefinition {
+  return TIER_BY_ID[tierId] ?? TIER_BY_ID.hobbyist;
 }
 
-/** Daily Drop batch size for lead-bank release protocol (1 / 15 / 30). */
-export function resolveDailyDropQuota(tier: SubscriptionTierId = "hobbyist"): number {
+export function meetsMinimumTier(
+  userTier: SubscriptionTierId | null | undefined,
+  required: SubscriptionTierId
+): boolean {
+  const resolved = userTier ? parseSubscriptionTier(userTier) : "hobbyist";
+  return TIER_RANK[resolved] >= TIER_RANK[required];
+}
+
+/** Daily Drop batch size for lead-bank release (1 / 15 / 100). */
+export function resolveDailyDropQuota(
+  tier: SubscriptionTierId = "hobbyist"
+): number {
   return getBillingTier(tier).dailyDropQuota;
 }
 
-export function resolveMonthlyLeadCap(tier: SubscriptionTierId = "hobbyist"): number {
+export function resolveMonthlyLeadCap(
+  tier: SubscriptionTierId = "hobbyist"
+): number {
   return getBillingTier(tier).monthlyLeadCap;
+}
+
+/** Live Reflection Engine task count per cron run (1 / 3 / 5). */
+export function resolveDailyReflectionTaskLimit(
+  tier: SubscriptionTierId = "hobbyist"
+): number {
+  return getBillingTier(tier).dailyReflectionTaskLimit;
+}
+
+export function reflectionTaskPromptLine(
+  tier: SubscriptionTierId = "hobbyist"
+): string {
+  const count = resolveDailyReflectionTaskLimit(tier);
+  return `Generate exactly ${count} high-leverage marketing task${count === 1 ? "" : "s"}.`;
 }

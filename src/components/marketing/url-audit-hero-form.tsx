@@ -14,7 +14,6 @@ type TeaserApiSuccess = {
   ok: true;
   teaser: MicroAuditResult["teaser"];
   dna: MicroAuditResult["dna"];
-  competitors: string[];
   previewLeads: MicroAuditResult["previewLeads"];
 };
 
@@ -66,7 +65,6 @@ export function UrlAuditHeroForm({
       onAuditComplete({
         teaser: parsed.data.teaser,
         dna: parsed.data.dna,
-        competitors: parsed.data.competitors,
         previewLeads: parsed.data.previewLeads,
       });
     } catch {

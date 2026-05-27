@@ -24,6 +24,22 @@ function BlurredCell({ children }: { children: React.ReactNode }) {
 }
 
 export function MicroAuditModal({ open, result, onClose }: MicroAuditModalProps) {
+  const teaser = result?.teaser;
+  const headlineText =
+    teaser?.highestIntentThreadTitle?.trim() || "Distribution leak report";
+  const primaryLeakPlatform =
+    teaser?.primaryLeakPlatform?.trim() || "—";
+  const missedTrafficVolume =
+    teaser?.missedTrafficVolume?.trim() || "—";
+  const highestIntentThreadTitle =
+    teaser?.highestIntentThreadTitle?.trim() || "—";
+
+  function intentLabel(score: number): "HOT" | "WARM" | "COLD" {
+    if (score >= 80) return "HOT";
+    if (score >= 50) return "WARM";
+    return "COLD";
+  }
+
   function persistHandoff(signupTier?: "hobbyist") {
     if (!result) return;
     persistMicroAuditHandoff(
@@ -76,7 +92,7 @@ export function MicroAuditModal({ open, result, onClose }: MicroAuditModalProps)
                   id="micro-audit-title"
                   className="mt-1 text-lg font-semibold tracking-tight text-foreground sm:text-xl"
                 >
-                  Distribution leak scan complete
+                  {headlineText}
                 </h2>
               </div>
               <button
@@ -90,17 +106,41 @@ export function MicroAuditModal({ open, result, onClose }: MicroAuditModalProps)
             </div>
 
             <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-              <section className="glass-soft rounded-xl border border-primary/20 p-5">
-                <p className="text-sm leading-relaxed text-foreground">
-                  We identified{" "}
-                  <span className="font-semibold text-primary">
-                    {result.teaser.productName}
-                  </span>{" "}
-                  as a{" "}
-                  <span className="font-semibold">{result.teaser.category}</span>{" "}
-                  tool targeting{" "}
-                  <span className="font-semibold">{result.teaser.audience}</span>
-                  . We matched your profile with our active database playbooks.
+              <section className="glass-strong rounded-2xl border border-primary/20 p-6">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-primary">
+                  Distribution Leak Report
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="glass-soft rounded-xl border border-border/50 p-4">
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+                      Primary leak platform
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-foreground">
+                      {primaryLeakPlatform}
+                    </p>
+                  </div>
+                  <div className="glass-soft rounded-xl border border-border/50 p-4">
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+                      Missed traffic volume
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-foreground">
+                      {missedTrafficVolume}
+                    </p>
+                  </div>
+                  <div className="glass-soft rounded-xl border border-border/50 p-4">
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+                      Highest intent thread
+                    </p>
+                    <p className="mt-2 line-clamp-3 text-sm font-semibold text-foreground">
+                      {highestIntentThreadTitle}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm leading-relaxed text-foreground">
+                  Our scrapers found buyers actively looking for a solution like
+                  yours within the last 48 hours. You are currently entirely
+                  invisible in these conversations.
                 </p>
               </section>
 
@@ -108,48 +148,7 @@ export function MicroAuditModal({ open, result, onClose }: MicroAuditModalProps)
                 <div className="space-y-4 pb-32">
                   <div>
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Competitor battlecards
-                    </h3>
-                    <div className="mt-2 overflow-hidden rounded-xl border border-border/50">
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="border-b border-border/50 bg-muted/30 font-mono uppercase tracking-wider text-muted-foreground">
-                            <th className="px-3 py-2.5">Competitor</th>
-                            <th className="hidden px-3 py-2.5 sm:table-cell">
-                              Positioning gap
-                            </th>
-                            <th className="px-3 py-2.5">Stealth angle</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {result.competitors.map((name) => (
-                            <tr
-                              key={name}
-                              className="border-b border-border/40 last:border-0"
-                            >
-                              <td className="px-3 py-3 font-medium text-foreground">
-                                <BlurredCell>{name}</BlurredCell>
-                              </td>
-                              <td className="hidden px-3 py-3 text-muted-foreground sm:table-cell">
-                                <BlurredCell>
-                                  Enterprise narrative vs indie wedge on speed
-                                </BlurredCell>
-                              </td>
-                              <td className="px-3 py-3 text-muted-foreground">
-                                <BlurredCell>
-                                  Lead with founder story + compliance-safe reply
-                                </BlurredCell>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Live radar leads
+                      Live discussions found
                     </h3>
                     <ul className="mt-2 space-y-2">
                       {result.previewLeads.map((lead, index) => (
@@ -165,7 +164,7 @@ export function MicroAuditModal({ open, result, onClose }: MicroAuditModalProps)
                               <BlurredCell>{lead.platform}</BlurredCell>
                             </Badge>
                             <span className="font-mono text-[10px] text-rose-600">
-                              HOT · {lead.intentScore}
+                              {intentLabel(lead.intentScore)} · {lead.intentScore}
                             </span>
                           </div>
                           <p className="mt-2 text-sm font-medium text-foreground">
@@ -173,6 +172,9 @@ export function MicroAuditModal({ open, result, onClose }: MicroAuditModalProps)
                           </p>
                           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                             <BlurredCell>{lead.draftSnippet}</BlurredCell>
+                          </p>
+                          <p className="mt-2 font-mono text-[10px] text-muted-foreground">
+                            <BlurredCell>{lead.sourceUrl}</BlurredCell>
                           </p>
                         </li>
                       ))}
@@ -191,7 +193,7 @@ export function MicroAuditModal({ open, result, onClose }: MicroAuditModalProps)
                       Unlock Your Live Distribution Cockpit
                     </p>
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      Reveal your 14 active target traffic threads, unlock deep
+                      Reveal your active target traffic threads, unlock deep
                       competitor intelligence, and activate your daily
                       personalized CMO reflection engine.
                     </p>

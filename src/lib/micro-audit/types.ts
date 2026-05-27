@@ -2,13 +2,15 @@ import type { ProductDNA } from "@/lib/signalflow-types";
 
 export type MicroAuditTeaser = {
   productName: string;
-  category: string;
-  audience: string;
+  primaryLeakPlatform: string;
+  missedTrafficVolume: string;
+  highestIntentThreadTitle: string;
   url: string;
 };
 
 export type MicroAuditPreviewLead = {
   platform: string;
+  sourceUrl: string;
   threadTitle: string;
   intentScore: number;
   draftSnippet: string;
@@ -17,7 +19,6 @@ export type MicroAuditPreviewLead = {
 export type MicroAuditResult = {
   teaser: MicroAuditTeaser;
   dna: ProductDNA;
-  competitors: string[];
   previewLeads: MicroAuditPreviewLead[];
 };
 
