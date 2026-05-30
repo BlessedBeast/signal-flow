@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ExternalLink, Loader2, Sparkles, X } from "lucide-react";
+import { Loader2, Lock, Sparkles, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,15 +41,41 @@ function platformLabel(platform: string): string {
   return platform;
 }
 
-function BlurredBlock({ className }: { className?: string }) {
+/** Opaque data surfaces — readable over the modal backdrop. */
+const SOLID_SECTION =
+  "rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-5";
+const SOLID_CARD =
+  "rounded-xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
+const SOLID_NESTED =
+  "rounded-xl border border-slate-200 bg-slate-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-950";
+const SOLID_PLAYBOOK =
+  "rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm dark:border-amber-500/40 dark:bg-zinc-900";
+
+function GoldenLeadCard({ lead }: { lead: HookGoldenLead }) {
   return (
-    <span
-      className={cn(
-        "inline-block w-full select-none rounded bg-muted/40 blur-md",
-        className
-      )}
-      aria-hidden
-    />
+    <article className={cn(SOLID_CARD, "border-primary/25 p-4")}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Badge variant="outline" className="border-primary/30 bg-primary/10">
+          {platformLabel(lead.platform)}
+        </Badge>
+        <span className="font-mono text-xs font-semibold text-primary">
+          {lead.intentScore}
+        </span>
+      </div>
+
+      <p className="mt-2 text-sm font-medium leading-snug text-foreground">
+        {lead.title}
+      </p>
+
+      <div
+        className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-100 px-3 py-2 text-xs text-muted-foreground dark:border-zinc-600 dark:bg-zinc-950"
+        role="status"
+        aria-label="URL and 1-click reply locked until signup"
+      >
+        <Lock className="size-3 shrink-0 opacity-70" aria-hidden />
+        <span>🔒 URL & 1-Click Reply Locked</span>
+      </div>
+    </article>
   );
 }
 
@@ -71,52 +97,10 @@ function MirrorField({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-xl border border-white/[0.08] bg-white/[0.02] p-3",
-        className
-      )}
-    >
+    <div className={cn(SOLID_NESTED, "p-3", className)}>
       <p className="font-mono text-[10px] text-muted-foreground">{label}</p>
       <div className="mt-1 text-sm text-foreground">{children}</div>
     </div>
-  );
-}
-
-function GoldenLeadCard({ lead }: { lead: HookGoldenLead }) {
-  return (
-    <article className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Badge variant="outline" className="border-primary/30 bg-primary/10">
-          {platformLabel(lead.platform)}
-        </Badge>
-        <span className="font-mono text-xs font-semibold text-primary">
-          {lead.intentScore}
-        </span>
-      </div>
-
-      <p className="mt-2 text-sm font-medium leading-snug text-foreground">
-        {lead.title}
-      </p>
-
-      <div className="mt-3 space-y-2">
-        <BlurredBlock className="h-3" />
-        <BlurredBlock className="h-3 w-4/5" />
-      </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled
-        className="mt-3 w-full gap-2 border-white/[0.12] blur-sm"
-        tabIndex={-1}
-        aria-hidden
-      >
-        Open thread
-        <ExternalLink className="size-3.5" />
-      </Button>
-    </article>
   );
 }
 
@@ -126,7 +110,7 @@ function CompetitorOverviewSection({
   battlecards: HookCompetitorBattlecard[];
 }) {
   return (
-    <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 backdrop-blur-md sm:p-5">
+    <section className={SOLID_SECTION}>
       <SectionEyebrow>Section 2 · Competitor overview</SectionEyebrow>
       {battlecards.length === 0 ? (
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
@@ -138,7 +122,7 @@ function CompetitorOverviewSection({
           {battlecards.map((competitor) => (
             <article
               key={competitor.name}
-              className="grid gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:grid-cols-3"
+              className={cn(SOLID_CARD, "grid gap-3 p-3 sm:grid-cols-3")}
             >
               <MirrorField label="Competitor">
                 <p className="font-semibold">{competitor.name}</p>
@@ -168,12 +152,12 @@ function RecommendedPlaybooksSection({
   scannedUrl: string;
 }) {
   return (
-    <section className="space-y-3">
+    <section className={cn(SOLID_SECTION, "space-y-3")}>
       <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
         Section 4 · Recommended playbooks
       </p>
       {playbooks.length === 0 ? (
-        <article className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-4">
+        <article className={cn(SOLID_CARD, "p-4")}>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Playbook matching is calibrating for this URL. Sign up to unlock the
             full framework library and personalized sequence map.
@@ -189,10 +173,7 @@ function RecommendedPlaybooksSection({
         <>
           <div className="space-y-3">
             {playbooks.map((playbook) => (
-              <article
-                key={playbook.slug}
-                className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4"
-              >
+              <article key={playbook.slug} className={SOLID_PLAYBOOK}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-widest text-amber-700 dark:text-amber-300">
@@ -204,7 +185,7 @@ function RecommendedPlaybooksSection({
                   </div>
                   <Badge
                     variant="outline"
-                    className="border-amber-500/35 bg-transparent font-mono text-[10px] text-amber-700 dark:text-amber-300"
+                    className="border-amber-500/35 bg-white font-mono text-[10px] text-amber-700 dark:bg-zinc-900 dark:text-amber-300"
                   >
                     {playbook.matchScore}% match
                   </Badge>
@@ -213,7 +194,7 @@ function RecommendedPlaybooksSection({
                   {playbook.description}
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-lg border border-amber-500/30 bg-black/15 px-3 py-2">
+                  <div className={cn(SOLID_NESTED, "px-3 py-2")}>
                     <p className="font-mono text-[10px] text-amber-700 dark:text-amber-300">
                       Projected impact
                     </p>
@@ -221,7 +202,7 @@ function RecommendedPlaybooksSection({
                       {playbook.projectedImpact}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-amber-500/30 bg-black/15 px-3 py-2">
+                  <div className={cn(SOLID_NESTED, "px-3 py-2")}>
                     <p className="font-mono text-[10px] text-amber-700 dark:text-amber-300">
                       Execution window
                     </p>
@@ -258,7 +239,7 @@ function AuditResultsBody({
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 backdrop-blur-md sm:p-5">
+      <section className={SOLID_SECTION}>
         <SectionEyebrow>Section 1 · The mirror</SectionEyebrow>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <MirrorField label="Brand">
@@ -275,15 +256,25 @@ function AuditResultsBody({
 
       <CompetitorOverviewSection battlecards={battlecards} />
 
-      <section className="space-y-3">
+      <section className={cn(SOLID_SECTION, "space-y-3")}>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
           Section 3 · Unblurred golden leads
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          We surfaced high-intent threads matching your product DNA — titles only
+          in this public audit. Source URLs and the 1-click reply sequence stay
+          locked until you claim your free dashboard below.
         </p>
         <div className="space-y-3">
           {result.goldenLeads.map((lead, i) => (
             <GoldenLeadCard key={`${lead.platform}-${i}`} lead={lead} />
           ))}
         </div>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Continue to your free workspace to unlock thread URLs, run the AI reply
+          pipeline, and release leads into your daily stream — use the signup
+          options at the bottom of this audit.
+        </p>
       </section>
 
       <RecommendedPlaybooksSection
@@ -291,12 +282,12 @@ function AuditResultsBody({
         scannedUrl={scannedUrl}
       />
 
-      <section className="space-y-3">
+      <section className={cn(SOLID_SECTION, "space-y-3")}>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
           Section 5 · Blurred intent ledger
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
+          <div className={cn(SOLID_NESTED, "px-4 py-3")}>
             <p className="font-mono text-[10px] text-muted-foreground">
               Active threads found
             </p>
@@ -304,7 +295,7 @@ function AuditResultsBody({
               {result.fomoMetrics.totalThreadsFound}
             </p>
           </div>
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
+          <div className={cn(SOLID_NESTED, "px-4 py-3")}>
             <p className="font-mono text-[10px] text-muted-foreground">
               Est. missed impressions
             </p>
@@ -317,14 +308,14 @@ function AuditResultsBody({
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-14 rounded-xl border border-white/[0.06] bg-white/[0.02] blur-md"
+              className={cn(SOLID_NESTED, "h-14 blur-md")}
               aria-hidden
             />
           ))}
         </div>
       </section>
 
-      <div className="flex flex-col gap-3 border-t border-white/[0.08] pt-6 sm:flex-row">
+      <div className="flex flex-col gap-3 border-t border-slate-200 pt-6 dark:border-zinc-800 sm:flex-row">
         <Button asChild className="flex-1 gap-2">
           <Link href={buildForensicSignupHref(scannedUrl, "bootstrapper")}>
             Unlock Premium Cockpit
@@ -439,19 +430,19 @@ export function ForensicAuditModal({
         >
           <motion.button
             type="button"
-            className="absolute inset-0 bg-background/70 backdrop-blur-md"
+            className="absolute inset-0 -z-10 bg-background/70 backdrop-blur-md"
             onClick={handleClose}
             aria-label="Close audit results"
           />
 
           <motion.div
-            className="relative z-10 flex max-h-[min(92vh,900px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] shadow-2xl backdrop-blur-md"
+            className="relative z-10 flex max-h-[min(92vh,900px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 32 }}
           >
-            <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-6 py-5">
+            <div className="relative z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-6 py-5 dark:border-zinc-800 dark:bg-zinc-900">
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-widest text-primary">
                   SignalFlow · Public audit
@@ -473,7 +464,7 @@ export function ForensicAuditModal({
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="relative z-10 flex-1 overflow-y-auto bg-white px-6 py-6 dark:bg-zinc-900">
               {loading ? (
                 <div className="flex min-h-[280px] flex-col items-center justify-center gap-3">
                   <Loader2
