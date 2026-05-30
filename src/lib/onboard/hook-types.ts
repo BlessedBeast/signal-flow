@@ -4,6 +4,21 @@ export type HookGoldenLead = {
   intentScore: string;
 };
 
+export type HookCompetitorBattlecard = {
+  name: string;
+  positioningAngle: string;
+  winTheme?: string;
+};
+
+export type HookRecommendedPlaybook = {
+  slug: string;
+  title: string;
+  description: string;
+  matchScore: number;
+  projectedImpact: string;
+  executionWindow: string;
+};
+
 export type HookResult = {
   mirror: {
     brandName: string;
@@ -15,10 +30,8 @@ export type HookResult = {
     totalThreadsFound: number;
     missedImpressionsEst: number;
   };
-  strategyTeaser: {
-    unblurredDiagnosis: string;
-    blurredPlaybookName: string;
-  };
+  recommendedPlaybooks: HookRecommendedPlaybook[];
+  competitorBattlecards: HookCompetitorBattlecard[];
 };
 
 export const HOOK_AUDIT_USED_KEY = "signalflow_hook_used";

@@ -4,6 +4,7 @@ import {
   executeGeoSeedsGeneration,
   GeoSeedsError,
 } from "@/lib/labs/geo-seeds-pipeline";
+import { mapGeoAnchorRowsToPreviousAnchors } from "@/lib/labs/labs-mappers";
 import {
   createRouteHandlerSupabase,
   resolveRouteHandlerUserId,
@@ -65,12 +66,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const previousAnchors = (priorRows ?? [])
-      .map((row) => row.keyword_anchor)
-      .filter(
-        (anchor): anchor is string =>
-          typeof anchor === "string" && anchor.trim().length > 0
-      );
+    const previousAnchors = mapGeoAnchorRowsToPreviousAnchors(priorRows);
 
     console.log(
       "[GEO TRACE] Exclusion memory loaded — anchors:",

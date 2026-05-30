@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import { mapGeoSeedsToInsertRows } from "@/lib/labs/labs-mappers";
 import { safeParseProductDna } from "@/lib/product-dna-schema";
 import type { ProductDNA } from "@/lib/signalflow-types";
 
@@ -267,13 +268,7 @@ async function persistGeoSeedsBatch(params: {
   userId: string;
   seeds: GeoSeed[];
 }): Promise<void> {
-  const rows = params.seeds.map((seed) => ({
-    user_id: params.userId,
-    keyword_anchor: seed.keywordAnchor,
-    distribution_target: seed.distributionTarget,
-    seed_narrative: seed.seedNarrative,
-    json_ld_schema: seed.jsonLdSchema,
-  }));
+  const rows = mapGeoSeedsToInsertRows(params.userId, params.seeds);
 
   console.log(
     "[GEO TRACE] Batch inserting geo_seeds rows — user:",

@@ -5,6 +5,7 @@ import {
   type PreviousSideCarTool,
   SideCarError,
 } from "@/lib/labs/side-cars-pipeline";
+import { mapSideCarRowsToPreviousTools } from "@/lib/labs/labs-mappers";
 import {
   createRouteHandlerSupabase,
   resolveRouteHandlerUserId,
@@ -68,13 +69,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const previousTools: PreviousSideCarTool[] = (priorRows ?? [])
-      .map((row) => ({
-        toolName: typeof row.tool_name === "string" ? row.tool_name.trim() : "",
-        conceptPitch:
-          typeof row.concept_pitch === "string" ? row.concept_pitch.trim() : "",
-      }))
-      .filter((tool) => tool.toolName.length > 0);
+    const previousTools: PreviousSideCarTool[] =
+      mapSideCarRowsToPreviousTools(priorRows);
 
     console.log(
       "[SIDECAR TRACE] Exclusion memory loaded — tools:",

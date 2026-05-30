@@ -5,7 +5,7 @@ import { InboundWorkspace } from "@/components/velocity/inbound-workspace";
 
 export default function InboundReplierPage() {
   return (
-    <TierGatedTool minimumTier="growth_studio" moduleLabel="1-Click Inbound Replier">
+    <TierGatedTool minimumTier="bootstrapper" moduleLabel="1-Click Inbound Replier">
       <InboundWorkspace />
     </TierGatedTool>
   );

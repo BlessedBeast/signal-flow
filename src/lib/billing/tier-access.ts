@@ -7,7 +7,7 @@ import {
 
 export type TierGateRequirement = {
   minimumTier: SubscriptionTierId;
-  /** Short label for the upgrade gate, e.g. "Indie Builder" */
+  /** Short label for the upgrade gate, e.g. "Bootstrapper" */
   requiredPlanName: string;
   /** One-line module name shown on the lock screen */
   moduleLabel?: string;

@@ -4,7 +4,7 @@ import {
   DISCOVERY_LEADS_TABLE,
   getLeadBankStats,
 } from "@/lib/discovery/lead-bank";
-import { mapDbLeadToClient, type DbLeadRow } from "@/lib/leads/map-db-lead";
+import { mapDbLeadToClientResponse, type DbLeadRow } from "@/lib/leads/map-db-lead";
 import { resolveAuthenticatedUserId } from "@/lib/onboard-pipeline";
 import { supabaseServer } from "@/lib/supabase-server";
 
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabaseServer
       .from(DISCOVERY_LEADS_TABLE)
       .select(
-        "id, user_id, platform, source_url, content, intent_score, status, ai_draft_content, conversation_history, created_at, released_at"
+        "id, user_id, platform, source_url, content, intent_score, status, ai_draft_content, media_directives, conversation_history, created_at, released_at"
       )
       .eq("user_id", userId)
       .in("status", ["active", "drafted", "replied"])
@@ -38,15 +38,9 @@ export async function GET(request: Request) {
       );
     }
 
-    const formattedRows = (data ?? []).map((lead) => ({
-      ...lead,
-      url: lead.source_url,
-    }));
-
-    const leads = formattedRows.map((row) => {
-      const clientLead = mapDbLeadToClient(row as DbLeadRow);
-      return { ...clientLead, url: clientLead.source_url };
-    });
+    const leads = (data ?? []).map((row) =>
+      mapDbLeadToClientResponse(row as DbLeadRow)
+    );
 
     const bank = await getLeadBankStats(supabaseServer, userId);
 

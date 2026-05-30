@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
 import {
+  SubscriptionTierError,
+  requireOneClickReplyAccess,
+} from "@/lib/billing/user-billing";
+import {
   executeInboundGeneration,
   InboundError,
   parseInboundBody,
@@ -41,6 +45,8 @@ export async function POST(request: Request) {
 
     const { supabase, user } = auth;
     console.log("[INBOUND TRACE] Authenticated user:", user.id);
+
+    await requireOneClickReplyAccess(supabase, user.id);
 
     let body: unknown;
     try {
@@ -93,6 +99,17 @@ export async function POST(request: Request) {
       "[INBOUND TRACE] Fatal exception encountered during execution:",
       error
     );
+
+    if (error instanceof SubscriptionTierError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: error.message,
+          step: "tier",
+        } satisfies InboundErrorResponse,
+        { status: error.status }
+      );
+    }
 
     if (error instanceof InboundError) {
       return NextResponse.json(

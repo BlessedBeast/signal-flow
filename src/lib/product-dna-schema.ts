@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  resolveActiveSerperQueryLimit,
+  type SubscriptionTierId,
+} from "@/lib/billing/tiers";
 import type { Platform, ProductDNA } from "@/lib/signalflow-types";
 import { DEFAULT_SERPER_QUERIES } from "@/lib/signalflow-types";
 
@@ -46,9 +50,42 @@ function coercePlatforms(value: unknown): Platform[] {
   return [...out];
 }
 
+function createClientDnaSchema(maxSerperQueries: number) {
+  return z.object({
+    productName: z.string().min(1),
+    url: z.string().min(1),
+    oneLiner: z.string().min(1),
+    audience: z.string().default(""),
+    painPoints: z.array(z.string()).default([]),
+    targetPlatforms: z
+      .array(z.enum(PLATFORMS))
+      .min(1)
+      .default(["reddit", "x", "hackernews"]),
+    activeSerperQueries: z
+      .array(z.string())
+      .min(1)
+      .max(maxSerperQueries, {
+        message: `Maximum of ${maxSerperQueries} active lead tracking quer${maxSerperQueries === 1 ? "y" : "ies"} allowed on your plan.`,
+      }),
+    competitors: z
+      .array(z.string())
+      .max(3, { message: "Maximum of 3 tracking competitors allowed." })
+      .optional()
+      .default([]),
+    keywords: z.preprocess(
+      (val) => coerceStringArray(val).slice(0, 3),
+      z.array(z.string()).optional().default([])
+    ),
+  });
+}
+
 /** Aligns client draft payloads with vault API expectations before POST. */
-export function normalizeVaultDnaPayload(dna: ProductDNA): ProductDNA {
-  const serper = coerceStringArray(dna.activeSerperQueries);
+export function normalizeVaultDnaPayload(
+  dna: ProductDNA,
+  tier: SubscriptionTierId = "free"
+): ProductDNA {
+  const queryCap = resolveActiveSerperQueryLimit(tier);
+  const serper = coerceStringArray(dna.activeSerperQueries).slice(0, queryCap);
   return {
     productName: dna.productName.trim(),
     url: dna.url.trim(),
@@ -57,9 +94,9 @@ export function normalizeVaultDnaPayload(dna: ProductDNA): ProductDNA {
     painPoints: coerceStringArray(dna.painPoints),
     targetPlatforms: coercePlatforms(dna.targetPlatforms),
     activeSerperQueries:
-      serper.length > 0 ? serper : [...DEFAULT_SERPER_QUERIES],
+      serper.length > 0 ? serper : [...DEFAULT_SERPER_QUERIES].slice(0, queryCap),
     competitors: coerceStringArray(dna.competitors),
-    keywords: coerceStringArray(dna.keywords),
+    keywords: coerceStringArray(dna.keywords).slice(0, 3),
   };
 }
 
@@ -83,24 +120,13 @@ function preprocessVaultDnaInput(raw: unknown): unknown {
   };
 }
 
-const clientDnaSchema = z.object({
-  productName: z.string().min(1),
-  url: z.string().min(1),
-  oneLiner: z.string().min(1),
-  audience: z.string().default(""),
-  painPoints: z.array(z.string()).default([]),
-  targetPlatforms: z
-    .array(z.enum(PLATFORMS))
-    .min(1)
-    .default(["reddit", "x", "hackernews"]),
-  activeSerperQueries: z.array(z.string()).min(1),
-  competitors: z.array(z.string()).optional().default([]),
-  keywords: z.array(z.string()).optional().default([]),
-});
-
-export function parseClientProductDna(raw: unknown): ProductDNA {
+export function parseClientProductDna(
+  raw: unknown,
+  tier: SubscriptionTierId = "free"
+): ProductDNA {
+  const maxSerperQueries = resolveActiveSerperQueryLimit(tier);
   const prepped = preprocessVaultDnaInput(raw);
-  const parsed = clientDnaSchema.safeParse(prepped);
+  const parsed = createClientDnaSchema(maxSerperQueries).safeParse(prepped);
   if (!parsed.success) {
     throw new Error(
       `Invalid product DNA payload: ${parsed.error.issues
@@ -109,10 +135,11 @@ export function parseClientProductDna(raw: unknown): ProductDNA {
     );
   }
 
-  return normalizeVaultDnaPayload(parsed.data);
+  return normalizeVaultDnaPayload(parsed.data, tier);
 }
 
 export function safeParseProductDna(raw: unknown): ProductDNA | null {
-  const parsed = clientDnaSchema.safeParse(raw);
+  const prepped = preprocessVaultDnaInput(raw);
+  const parsed = createClientDnaSchema(10).safeParse(prepped);
   return parsed.success ? parsed.data : null;
 }

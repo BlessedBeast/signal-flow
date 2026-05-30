@@ -13,10 +13,11 @@ import {
   type SetStateAction,
 } from "react";
 
-import { parseSubscriptionTier } from "@/lib/billing/tiers";
-import { DAILY_LIMIT } from "@/lib/discovery/constants";
+import { parseSubscriptionTier, resolveDailyDropQuota } from "@/lib/billing/tiers";
 import { safeParseProductDna } from "@/lib/product-dna-schema";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
+import { parseFrameworkStepTracking } from "@/lib/frameworks/framework-step-tracking";
+import { parseMediaDirectives } from "@/lib/parse-media-directives";
 import type {
   CompetitorBattlecards,
   Lead,
@@ -24,10 +25,15 @@ import type {
   Profile,
 } from "@/lib/signalflow-types";
 import { initialDNA } from "@/lib/signalflow-types";
+import type {
+  ProfileRow,
+  ProfileStoreSelectRow,
+} from "@/types/database.types";
 
 export type {
   ConversationTurn,
   CompetitorBattlecards,
+  DiscoveryLead,
   IntentTier,
   Lead,
   LeadStatus,
@@ -68,8 +74,13 @@ const SignalFlowContext = createContext<SignalFlowContextValue | null>(null);
 const EMPTY_PROFILE: Profile = {
   is_mining: false,
   product_dna: null,
+  persona_context: null,
   competitor_battlecards: {},
-  subscription_tier: "hobbyist",
+  subscription_tier: "free",
+  current_streak: 0,
+  longest_streak: 0,
+  last_action_at: null,
+  framework_step_tracking: {},
 };
 
 function parseProductDnaFromDb(raw: unknown): ProductDNA | null {
@@ -89,11 +100,40 @@ function parseBattlecardsFromDb(raw: unknown): CompetitorBattlecards {
   return out;
 }
 
-type ProfileRowPayload = {
-  is_mining?: boolean;
-  product_dna?: unknown;
-  competitor_battlecards?: unknown;
-};
+type ProfileRowPayload = Partial<ProfileStoreSelectRow>;
+
+function normalizeLeadsFromApi(leads: Lead[]): Lead[] {
+  return leads.map((lead) => ({
+    ...lead,
+    media_directives: parseMediaDirectives(lead.media_directives),
+  }));
+}
+
+function profileRowToState(
+  row: ProfileStoreSelectRow | null | undefined
+): Profile {
+  const productDna = parseProductDnaFromDb(row?.product_dna);
+
+  return {
+    is_mining: Boolean(row?.is_mining),
+    product_dna: productDna,
+    persona_context:
+      row?.persona_context &&
+      typeof row.persona_context === "object" &&
+      !Array.isArray(row.persona_context)
+        ? (row.persona_context as Record<string, unknown>)
+        : null,
+    competitor_battlecards: parseBattlecardsFromDb(row?.competitor_battlecards),
+    subscription_tier: parseSubscriptionTier(row?.subscription_tier),
+    current_streak: Number(row?.current_streak ?? 0),
+    longest_streak: Number(row?.longest_streak ?? 0),
+    last_action_at:
+      typeof row?.last_action_at === "string" ? row.last_action_at : null,
+    framework_step_tracking: parseFrameworkStepTracking(
+      row?.framework_step_tracking
+    ),
+  };
+}
 
 function applyProfileRow(
   row: ProfileRowPayload,
@@ -117,7 +157,34 @@ function applyProfileRow(
           ? Boolean(row.is_mining)
           : prev.is_mining,
       product_dna: productDna ?? prev.product_dna,
+      persona_context:
+        row.persona_context !== undefined &&
+        row.persona_context &&
+        typeof row.persona_context === "object" &&
+        !Array.isArray(row.persona_context)
+          ? (row.persona_context as Record<string, unknown>)
+          : prev.persona_context,
       competitor_battlecards: battlecards,
+      subscription_tier:
+        row.subscription_tier !== undefined
+          ? parseSubscriptionTier(row.subscription_tier)
+          : prev.subscription_tier,
+      current_streak:
+        row.current_streak !== undefined && row.current_streak !== null
+          ? Number(row.current_streak)
+          : prev.current_streak,
+      longest_streak:
+        row.longest_streak !== undefined && row.longest_streak !== null
+          ? Number(row.longest_streak)
+          : prev.longest_streak,
+      last_action_at:
+        row.last_action_at !== undefined
+          ? row.last_action_at
+          : prev.last_action_at,
+      framework_step_tracking:
+        row.framework_step_tracking !== undefined
+          ? parseFrameworkStepTracking(row.framework_step_tracking)
+          : prev.framework_step_tracking,
     };
 
     if (productDna) {
@@ -131,7 +198,7 @@ function applyProfileRow(
 const EMPTY_LEAD_BANK: LeadBankStats = {
   queuedCount: 0,
   activeCount: 0,
-  dailyLimit: DAILY_LIMIT,
+  dailyLimit: resolveDailyDropQuota("free"),
 };
 
 export function SignalFlowProvider({ children }: { children: ReactNode }) {
@@ -210,7 +277,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      setLeadsState(body.leads);
+      setLeadsState(normalizeLeadsFromApi(body.leads));
       setLeadBankState(body.bank);
       return true;
     } catch (err) {
@@ -240,7 +307,9 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("is_mining, product_dna, competitor_battlecards, subscription_tier")
+        .select(
+          "is_mining, product_dna, persona_context, competitor_battlecards, subscription_tier, current_streak, longest_streak, last_action_at, framework_step_tracking"
+        )
         .eq("id", session.user.id)
         .maybeSingle();
 
@@ -249,17 +318,11 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      const productDna = parseProductDnaFromDb(data?.product_dna);
-      const nextProfile: Profile = {
-        is_mining: Boolean(data?.is_mining),
-        product_dna: productDna,
-        competitor_battlecards: parseBattlecardsFromDb(
-          data?.competitor_battlecards
-        ),
-        subscription_tier: parseSubscriptionTier(data?.subscription_tier),
-      };
+      const row = data as ProfileStoreSelectRow | null;
+      const nextProfile = profileRowToState(row);
 
       setProfileState(nextProfile);
+      const productDna = nextProfile.product_dna;
       if (productDna) {
         setDnaState(productDna);
       }
@@ -346,7 +409,7 @@ export function SignalFlowProvider({ children }: { children: ReactNode }) {
             filter: `id=eq.${userId}`,
           },
           (payload) => {
-            const row = (payload.new ?? payload.old) as ProfileRowPayload;
+            const row = (payload.new ?? payload.old) as Partial<ProfileRow>;
             if (!row || payload.eventType === "DELETE") return;
             applyProfileRow(row, setProfileState, setDnaState);
           }

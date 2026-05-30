@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { parseMediaDirectives } from "@/lib/parse-media-directives";
 import type {
   ConversationTurn,
   Lead,
@@ -7,6 +8,10 @@ import type {
   Platform,
 } from "@/lib/signalflow-types";
 import { parsePlatform } from "@/lib/signalflow-types";
+import type { DiscoveryLeadRow } from "@/types/database.types";
+
+/** Client-facing discovery lead (same shape as `Lead`). */
+export type DiscoveryLead = Lead;
 
 const conversationTurnSchema = z.object({
   role: z.enum(["prospect", "user"]),
@@ -14,20 +19,8 @@ const conversationTurnSchema = z.object({
   at: z.string(),
 });
 
-export type DbLeadRow = {
-  id: string;
-  user_id: string;
-  platform: string | null;
-  source_url?: string | null;
-  url?: string | null;
-  content: string | null;
-  intent_score: number | null;
-  status: string;
-  ai_draft_content: string | null;
-  conversation_history: unknown;
-  created_at: string;
-  released_at?: string | null;
-};
+/** @deprecated Prefer `DiscoveryLeadRow` from `@/types/database.types`. */
+export type DbLeadRow = DiscoveryLeadRow;
 
 function parseConversationHistory(raw: unknown): ConversationTurn[] {
   if (!raw) return [];
@@ -80,6 +73,7 @@ export function mapDbLeadToClient(row: DbLeadRow): Lead {
     intent_score: row.intent_score ?? 0,
     status: normalizeWorkflowStatus(row.status),
     ai_draft_content: row.ai_draft_content,
+    media_directives: parseMediaDirectives(row.media_directives),
     conversation_history: parseConversationHistory(row.conversation_history),
     source_url: sourceUrl,
     released_at: releasedAt,
@@ -87,4 +81,13 @@ export function mapDbLeadToClient(row: DbLeadRow): Lead {
     author: authorFromPlatform(platform),
     subreddit: platform === "reddit" ? "Community" : null,
   };
+}
+
+export type ClientLeadResponse = Lead & {
+  url: string;
+};
+
+export function mapDbLeadToClientResponse(row: DbLeadRow): ClientLeadResponse {
+  const clientLead = mapDbLeadToClient(row);
+  return { ...clientLead, url: clientLead.source_url };
 }

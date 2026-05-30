@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import { mapSideCarBlueprintToInsertRow } from "@/lib/labs/labs-mappers";
 import { safeParseProductDna } from "@/lib/product-dna-schema";
 import type { ProductDNA } from "@/lib/signalflow-types";
 
@@ -279,13 +280,6 @@ Architect one viral lead magnet blueprint for this product. The Lovable prompt m
   return validated.data;
 }
 
-function serializeBlueprintPayload(blueprint: SideCarBlueprint): string {
-  return JSON.stringify({
-    lovableMasterPrompt: blueprint.lovableMasterPrompt,
-    seoKeywordsAndCaptureStrategy: blueprint.seoKeywordsAndCaptureStrategy,
-  });
-}
-
 async function persistSideCar(params: {
   supabase: SupabaseClient;
   userId: string;
@@ -298,12 +292,8 @@ async function persistSideCar(params: {
     params.blueprint.toolName
   );
 
-  const { error } = await params.supabase.from("side_cars").insert({
-    user_id: params.userId,
-    tool_name: params.blueprint.toolName,
-    concept_pitch: params.blueprint.conceptPitch,
-    export_html_code: serializeBlueprintPayload(params.blueprint),
-  });
+  const row = mapSideCarBlueprintToInsertRow(params.userId, params.blueprint);
+  const { error } = await params.supabase.from("side_cars").insert(row);
 
   if (error) {
     console.error(

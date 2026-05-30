@@ -1,13 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ExternalLink, Lock, Loader2, Sparkles, X } from "lucide-react";
+import { ExternalLink, Loader2, Sparkles, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { HookGoldenLead, HookResult } from "@/lib/onboard/hook-types";
+import type {
+  HookCompetitorBattlecard,
+  HookGoldenLead,
+  HookRecommendedPlaybook,
+  HookResult,
+} from "@/lib/onboard/hook-types";
 import { markHookAuditUsed } from "@/lib/onboard/hook-types";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +21,18 @@ export type ForensicAuditModalProps = {
   url: string | null;
   onClose: () => void;
 };
+
+function buildForensicSignupHref(
+  scannedUrl: string,
+  tier?: "free" | "bootstrapper"
+): string {
+  const params = new URLSearchParams();
+  if (tier) {
+    params.set("tier", tier);
+  }
+  params.set("url", scannedUrl);
+  return `/signup?${params.toString()}`;
+}
 
 function platformLabel(platform: string): string {
   const p = platform.toLowerCase();
@@ -33,6 +50,36 @@ function BlurredBlock({ className }: { className?: string }) {
       )}
       aria-hidden
     />
+  );
+}
+
+function SectionEyebrow({ children }: { children: ReactNode }) {
+  return (
+    <p className="font-mono text-[10px] uppercase tracking-widest text-primary">
+      {children}
+    </p>
+  );
+}
+
+function MirrorField({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-white/[0.08] bg-white/[0.02] p-3",
+        className
+      )}
+    >
+      <p className="font-mono text-[10px] text-muted-foreground">{label}</p>
+      <div className="mt-1 text-sm text-foreground">{children}</div>
+    </div>
   );
 }
 
@@ -73,44 +120,164 @@ function GoldenLeadCard({ lead }: { lead: HookGoldenLead }) {
   );
 }
 
-function AuditResultsBody({ result }: { result: HookResult }) {
+function CompetitorOverviewSection({
+  battlecards,
+}: {
+  battlecards: HookCompetitorBattlecard[];
+}) {
+  return (
+    <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 backdrop-blur-md sm:p-5">
+      <SectionEyebrow>Section 2 · Competitor overview</SectionEyebrow>
+      {battlecards.length === 0 ? (
+        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+          No direct competitors surfaced from this scrape. Add rivals during
+          vault setup to unlock battlecard positioning.
+        </p>
+      ) : (
+        <div className="mt-4 grid gap-3">
+          {battlecards.map((competitor) => (
+            <article
+              key={competitor.name}
+              className="grid gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:grid-cols-3"
+            >
+              <MirrorField label="Competitor">
+                <p className="font-semibold">{competitor.name}</p>
+              </MirrorField>
+              <MirrorField label="Positioning angle" className="sm:col-span-2">
+                <p className="leading-relaxed">{competitor.positioningAngle}</p>
+              </MirrorField>
+              <MirrorField label="Win theme" className="sm:col-span-3">
+                <p className="leading-relaxed">
+                  {competitor.winTheme?.trim() ||
+                    "Differentiate on speed-to-reply and founder voice."}
+                </p>
+              </MirrorField>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RecommendedPlaybooksSection({
+  playbooks,
+  scannedUrl,
+}: {
+  playbooks: HookRecommendedPlaybook[];
+  scannedUrl: string;
+}) {
+  return (
+    <section className="space-y-3">
+      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        Section 4 · Recommended playbooks
+      </p>
+      {playbooks.length === 0 ? (
+        <article className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-4">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Playbook matching is calibrating for this URL. Sign up to unlock the
+            full framework library and personalized sequence map.
+          </p>
+          <Button asChild className="mt-4 w-full gap-2">
+            <Link href={buildForensicSignupHref(scannedUrl, "bootstrapper")}>
+              Unlock the Framework Library
+              <Sparkles className="size-4" aria-hidden />
+            </Link>
+          </Button>
+        </article>
+      ) : (
+        <>
+          <div className="space-y-3">
+            {playbooks.map((playbook) => (
+              <article
+                key={playbook.slug}
+                className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                      {playbook.slug}
+                    </p>
+                    <h3 className="mt-1 text-sm font-semibold text-foreground">
+                      {playbook.title}
+                    </h3>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="border-amber-500/35 bg-transparent font-mono text-[10px] text-amber-700 dark:text-amber-300"
+                  >
+                    {playbook.matchScore}% match
+                  </Badge>
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-foreground/90">
+                  {playbook.description}
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-amber-500/30 bg-black/15 px-3 py-2">
+                    <p className="font-mono text-[10px] text-amber-700 dark:text-amber-300">
+                      Projected impact
+                    </p>
+                    <p className="mt-1 text-sm text-foreground">
+                      {playbook.projectedImpact}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-amber-500/30 bg-black/15 px-3 py-2">
+                    <p className="font-mono text-[10px] text-amber-700 dark:text-amber-300">
+                      Execution window
+                    </p>
+                    <p className="mt-1 text-sm text-foreground">
+                      {playbook.executionWindow}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          <Button asChild className="w-full gap-2">
+            <Link href={buildForensicSignupHref(scannedUrl, "bootstrapper")}>
+              Unlock the Full Framework Library
+              <Sparkles className="size-4" aria-hidden />
+            </Link>
+          </Button>
+        </>
+      )}
+    </section>
+  );
+}
+
+function AuditResultsBody({
+  result,
+  scannedUrl,
+}: {
+  result: HookResult;
+  scannedUrl: string;
+}) {
   const brandSuffix = result.mirror.brandName.trim();
+  const playbooks = result.recommendedPlaybooks ?? [];
+  const battlecards = result.competitorBattlecards ?? [];
 
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 backdrop-blur-md sm:p-5">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-primary">
-          Section 1 · The mirror
-        </p>
+        <SectionEyebrow>Section 1 · The mirror</SectionEyebrow>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
-            <p className="font-mono text-[10px] text-muted-foreground">Brand</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">
-              {result.mirror.brandName}
-            </p>
-          </div>
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:col-span-2">
-            <p className="font-mono text-[10px] text-muted-foreground">
-              Target persona
-            </p>
-            <p className="mt-1 text-sm text-foreground">
-              {result.mirror.targetPersona}
-            </p>
-          </div>
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:col-span-3">
-            <p className="font-mono text-[10px] text-muted-foreground">
-              Core friction
-            </p>
-            <p className="mt-1 text-sm font-medium text-foreground">
-              {result.mirror.coreFriction}
-            </p>
-          </div>
+          <MirrorField label="Brand">
+            <p className="font-semibold">{result.mirror.brandName}</p>
+          </MirrorField>
+          <MirrorField label="Target persona" className="sm:col-span-2">
+            <p>{result.mirror.targetPersona}</p>
+          </MirrorField>
+          <MirrorField label="Core friction" className="sm:col-span-3">
+            <p className="font-medium">{result.mirror.coreFriction}</p>
+          </MirrorField>
         </div>
       </section>
 
+      <CompetitorOverviewSection battlecards={battlecards} />
+
       <section className="space-y-3">
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Section 2 · Proof of life
+          Section 3 · Unblurred golden leads
         </p>
         <div className="space-y-3">
           {result.goldenLeads.map((lead, i) => (
@@ -119,9 +286,14 @@ function AuditResultsBody({ result }: { result: HookResult }) {
         </div>
       </section>
 
+      <RecommendedPlaybooksSection
+        playbooks={playbooks}
+        scannedUrl={scannedUrl}
+      />
+
       <section className="space-y-3">
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Section 3 · FOMO metrics
+          Section 5 · Blurred intent ledger
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3">
@@ -152,26 +324,9 @@ function AuditResultsBody({ result }: { result: HookResult }) {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Section 4 · Strategy teaser
-        </p>
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-          <p className="text-sm leading-relaxed text-foreground">
-            {result.strategyTeaser.unblurredDiagnosis}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
-          <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <p className="select-none text-sm text-muted-foreground blur-sm">
-            {result.strategyTeaser.blurredPlaybookName}
-          </p>
-        </div>
-      </section>
-
       <div className="flex flex-col gap-3 border-t border-white/[0.08] pt-6 sm:flex-row">
         <Button asChild className="flex-1 gap-2">
-          <Link href="/signup">
+          <Link href={buildForensicSignupHref(scannedUrl, "bootstrapper")}>
             Unlock Premium Cockpit
             <Sparkles className="size-4" aria-hidden />
           </Link>
@@ -181,7 +336,7 @@ function AuditResultsBody({ result }: { result: HookResult }) {
           variant="outline"
           className="flex-1 border-white/[0.12]"
         >
-          <Link href="/signup?tier=hobbyist">
+          <Link href={buildForensicSignupHref(scannedUrl, "free")}>
             Continue with Basic Free Version
           </Link>
         </Button>
@@ -337,7 +492,13 @@ export function ForensicAuditModal({
                     scans.
                   </p>
                   <Button asChild size="lg" className="gap-2">
-                    <Link href="/signup">
+                    <Link
+                      href={
+                        url
+                          ? buildForensicSignupHref(url, "bootstrapper")
+                          : "/signup?tier=bootstrapper"
+                      }
+                    >
                       Unlock Premium Cockpit
                       <Sparkles className="size-4" aria-hidden />
                     </Link>
@@ -350,8 +511,8 @@ export function ForensicAuditModal({
                     Close
                   </Button>
                 </div>
-              ) : result ? (
-                <AuditResultsBody result={result} />
+              ) : result && url ? (
+                <AuditResultsBody result={result} scannedUrl={url} />
               ) : null}
             </div>
           </motion.div>

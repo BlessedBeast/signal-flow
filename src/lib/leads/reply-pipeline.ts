@@ -10,9 +10,15 @@ import type {
 } from "@/lib/signalflow-types";
 import { supabaseServer } from "@/lib/supabase-server";
 
+import { getPlatformConstraints } from "@/lib/moderation/rule-cache-service";
+import { buildPlatformComplianceGuardrailsBlock } from "@/lib/moderation/prompt-blocks";
+import {
+  emptyPlatformConstraints,
+  type PlatformConstraints,
+} from "@/lib/moderation/types";
+
 import {
   buildCommunityComplianceProtocolBlock,
-  fetchAndCacheCommunityRules,
   getDefaultComplianceFlags,
 } from "./compliance-engine";
 import { fetchWinningFlywheelExamples } from "./flywheel-pipeline";
@@ -20,6 +26,8 @@ import {
   buildConversationalDepthBlock,
   buildPlatformComplianceBlock,
   buildSourceCommunityContext,
+  extractSubredditFromUrl,
+  normalizePlatform,
 } from "./source-context";
 
 const OPENAI_MODEL = "gpt-4o";
@@ -33,6 +41,11 @@ const conversationTurnSchema = z.object({
 const replyBodySchema = z.object({
   leadId: z.string().uuid(),
   prospectResponse: z.string().optional(),
+});
+
+const replyOutputSchema = z.object({
+  draft_text: z.string().min(1),
+  media_directives: z.array(z.string().min(1)).min(1).max(2),
 });
 
 export class ReplyError extends Error {
@@ -51,6 +64,7 @@ export type ReplyResult = {
   reply: string;
   conversation_history: ConversationTurn[];
   ai_draft_content: string;
+  media_directives: string[];
 };
 
 export { resolveAuthenticatedUserId };
@@ -166,16 +180,30 @@ function buildBattlecardSystemBlock(match: {
   return `CRITICAL CONTEXT: The prospect mentioned your competitor ${match.name}. You must subtly weave the following counter-pitch advantage naturally into your casual, fragmented response without sounding like a corporate salesman: ${match.content}`;
 }
 
+function resolveTargetLocation(
+  platform: string | null,
+  sourceUrl: string
+): string {
+  const sub = extractSubredditFromUrl(sourceUrl);
+  if (sub) return sub;
+  const resolved = normalizePlatform(platform, sourceUrl);
+  if (resolved === "reddit") return sourceUrl.trim() || "global";
+  return `global_${resolved}`;
+}
+
 async function fetchOperatorProfileContext(userId: string): Promise<{
-  personaContext: string;
+  personaContext: Record<string, unknown> | null;
   battlecards: CompetitorBattlecards;
   productDna: ProductDNA | null;
+  userStats: Record<string, unknown>;
 }> {
   console.log("[REPLY TRACE] Checkpoint 3: Profile Context Fetch — userId:", userId);
 
   const { data, error } = await supabaseServer
     .from("profiles")
-    .select("persona_context, competitor_battlecards, product_dna")
+    .select(
+      "persona_context, competitor_battlecards, product_dna, current_streak, longest_streak"
+    )
     .eq("id", userId)
     .maybeSingle();
 
@@ -205,10 +233,22 @@ async function fetchOperatorProfileContext(userId: string): Promise<{
     hasProductDna: productDna !== null,
   });
 
+  const personaContext =
+    data?.persona_context &&
+    typeof data.persona_context === "object" &&
+    !Array.isArray(data.persona_context)
+      ? (data.persona_context as Record<string, unknown>)
+      : null;
+
   return {
-    personaContext: (data?.persona_context as string | null)?.trim() ?? "",
+    personaContext,
     battlecards: parseBattlecardsFromDb(data?.competitor_battlecards),
     productDna,
+    userStats: {
+      current_streak: Number(data?.current_streak ?? 0),
+      longest_streak: Number(data?.longest_streak ?? 0),
+      persona_context: personaContext,
+    },
   };
 }
 
@@ -227,11 +267,12 @@ export async function generateRoughEdgesReply(params: {
   leadContent: string;
   sourceUrl: string;
   platform: string | null;
-  personaContext: string;
+  personaContext: Record<string, unknown> | null;
+  userStats?: Record<string, unknown>;
   conversationHistory: ConversationTurn[];
   prospectResponse?: string;
   competitorMatch?: { name: string; content: string } | null;
-}): Promise<string> {
+}): Promise<{ draft_text: string; media_directives: string[] }> {
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) {
     throw new ReplyError("OPENAI_API_KEY is not configured", 500, "openai");
@@ -244,40 +285,49 @@ export async function generateRoughEdgesReply(params: {
     conversationHistory: params.conversationHistory,
   });
 
-  const persona =
-    params.personaContext ||
-    "Indie founder building B2B SaaS — direct, helpful, no corporate polish.";
+  const personaJson = JSON.stringify(
+    params.personaContext ?? { note: "No persona context captured yet." },
+    null,
+    2
+  );
 
   const complianceBlock = buildPlatformComplianceBlock(communityCtx);
   const depthBlock = buildConversationalDepthBlock(
     communityCtx.operatorTurnCount
   );
 
-  let communityProtocolFlags = getDefaultComplianceFlags(communityCtx.platform);
+  const targetLocation = resolveTargetLocation(params.platform, sourceUrl);
+  let constraints: PlatformConstraints = emptyPlatformConstraints();
   try {
     console.log(
-      "[REPLY TRACE] Checkpoint 4: Compliance Matrix Query — sourceUrl:",
-      sourceUrl,
-      "| platform:",
-      params.platform
+      "[REPLY TRACE] Checkpoint 4: Platform constraints cache — platform:",
+      communityCtx.platform,
+      "| location:",
+      targetLocation
     );
-    const cachedFlags = await fetchAndCacheCommunityRules(
-      sourceUrl,
-      params.platform
+    constraints = await getPlatformConstraints(
+      communityCtx.platform,
+      targetLocation,
+      params.userStats
     );
     console.log(
-      "[REPLY TRACE] Compliance rules resolved — flag count:",
-      cachedFlags.length
+      "[REPLY TRACE] Platform constraints resolved — rule count:",
+      constraints.rules.length
     );
-    if (cachedFlags.length > 0) {
-      communityProtocolFlags = cachedFlags;
-    }
   } catch (err) {
     console.error(
-      "[REPLY TRACE] Compliance cache/scrape failed, using defaults:",
+      "[REPLY TRACE] Platform constraints cache failed, using defaults:",
       err instanceof Error ? err.message : err
     );
   }
+
+  const platformGuardrailsBlock =
+    buildPlatformComplianceGuardrailsBlock(constraints);
+
+  const communityProtocolFlags =
+    constraints.rules.length > 0
+      ? constraints.rules
+      : getDefaultComplianceFlags(communityCtx.platform);
 
   const communityProtocolsBlock =
     buildCommunityComplianceProtocolBlock(communityProtocolFlags);
@@ -293,18 +343,36 @@ export async function generateRoughEdgesReply(params: {
 
   const flywheelSection = flywheelBlock ? `\n\n${flywheelBlock}` : "";
 
-  const systemPrompt = `OPERATOR PERSONA (mandatory — match this voice exactly):
-${persona}${battlecardBlock}
+  const systemPrompt = `OPERATOR PERSONA CONTEXT (mandatory):
+${personaJson}${battlecardBlock}
+
+PERSONA INJECTION RULE (non-negotiable):
+- Adopt the specific background, tone, and historical details provided in the founder persona context.
+- Integrate these facts seamlessly in the response.
+- Do not invent generic backstories or fictional origin details.
 
 ACTIVE PLATFORM: ${communityCtx.platform}
 
 ${buildAntiAiDetectionToneBlock()}
 
+${platformGuardrailsBlock}
+
 ${complianceBlock}
 
 ${communityProtocolsBlock}
 
-${depthBlock}${flywheelSection}`;
+${depthBlock}${flywheelSection}
+
+NATIVE PROOF PROTOCOL (mandatory):
+- Alongside the draft, output 1-2 explicit directives for required visual proof assets (screenshot, short video, analytics chart, etc.).
+- These directives must be specific to this platform/thread and immediately actionable.
+- Do NOT ask the user to upload files in-app. The media is attached natively on the target platform.
+
+OUTPUT FORMAT (strict JSON only):
+{
+  "draft_text": "string",
+  "media_directives": ["directive 1", "directive 2"]
+}`;
 
   const historyBlock = formatHistoryForPrompt(params.conversationHistory);
   const task = params.prospectResponse
@@ -345,6 +413,7 @@ ${task}`;
       body: JSON.stringify({
         model: OPENAI_MODEL,
         temperature: 0.8,
+        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -376,17 +445,33 @@ ${task}`;
     choices?: { message?: { content?: string } }[];
   };
 
-  const reply = completion.choices?.[0]?.message?.content?.trim();
-  if (!reply) {
+  const raw = completion.choices?.[0]?.message?.content?.trim();
+  if (!raw) {
     console.error("[REPLY TRACE] OpenAI returned empty reply content");
     throw new ReplyError("OpenAI returned an empty reply", 502, "openai");
   }
 
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new ReplyError("OpenAI returned invalid reply JSON", 502, "openai");
+  }
+
+  const validated = replyOutputSchema.safeParse(parsed);
+  if (!validated.success) {
+    throw new ReplyError(
+      `OpenAI reply schema mismatch: ${validated.error.message}`,
+      502,
+      "openai"
+    );
+  }
+
   console.log(
     "[REPLY TRACE] OpenAI draft generated — character length:",
-    reply.length
+    validated.data.draft_text.length
   );
-  return reply;
+  return validated.data;
 }
 
 async function persistReplyUpdate(params: {
@@ -394,12 +479,14 @@ async function persistReplyUpdate(params: {
   userId: string;
   conversationHistory: ConversationTurn[];
   aiDraftContent: string;
+  mediaDirectives: string[];
 }): Promise<void> {
   const { error } = await supabaseServer
     .from(DISCOVERY_LEADS_TABLE)
     .update({
       conversation_history: params.conversationHistory,
       ai_draft_content: params.aiDraftContent,
+      media_directives: params.mediaDirectives,
       status: "drafted",
     })
     .eq("id", params.leadId)
@@ -438,7 +525,7 @@ export async function executeReplyGeneration(
     lead.source_url ?? lead.url ?? "(none)"
   );
 
-  const { personaContext, battlecards } =
+  const { personaContext, battlecards, userStats } =
     await fetchOperatorProfileContext(userId);
 
   const sourceUrl = lead.source_url?.trim() ?? lead.url?.trim() ?? "";
@@ -465,11 +552,12 @@ export async function executeReplyGeneration(
     ];
   }
 
-  const generatedReply = await generateRoughEdgesReply({
+  const generated = await generateRoughEdgesReply({
     leadContent: lead.content,
     sourceUrl,
     platform: lead.platform,
     personaContext,
+    userStats,
     conversationHistory: history,
     prospectResponse,
     competitorMatch,
@@ -477,7 +565,7 @@ export async function executeReplyGeneration(
 
   const userTurn: ConversationTurn = {
     role: "user",
-    content: generatedReply,
+    content: generated.draft_text,
     at: new Date().toISOString(),
   };
 
@@ -487,13 +575,15 @@ export async function executeReplyGeneration(
     leadId,
     userId,
     conversationHistory: history,
-    aiDraftContent: generatedReply,
+    aiDraftContent: generated.draft_text,
+    mediaDirectives: generated.media_directives,
   });
 
   return {
     ok: true,
-    reply: generatedReply,
+    reply: generated.draft_text,
     conversation_history: history,
-    ai_draft_content: generatedReply,
+    ai_draft_content: generated.draft_text,
+    media_directives: generated.media_directives,
   };
 }

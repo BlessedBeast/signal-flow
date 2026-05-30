@@ -23,11 +23,14 @@ import { supabaseServer } from "@/lib/supabase-server";
 const OPENAI_MODEL = "gpt-4o";
 const TASK_HISTORY_LIMIT = 5;
 const LIVE_STREAM_LIMIT = 5;
+const CONTENT_MODES = ["plug", "hype", "deflect"] as const;
+
 const reflectionTaskSchema = z.object({
-  action_type: z.string().min(1),
+  action_type: z.enum(CONTENT_MODES),
   target_community: z.string().min(1),
   instruction_to_user: z.string().min(1),
-  ai_generated_draft: z.string().min(1),
+  draft_text: z.string().min(1),
+  media_directives: z.array(z.string().min(1)).min(1).max(2),
 });
 
 function createReflectionTasksSchema(taskCount: number) {
@@ -114,7 +117,7 @@ ${painPoints}
 
 function buildFrameworksBlock(frameworks: Record<string, unknown>[]): string {
   if (frameworks.length === 0) {
-    return "(no core frameworks loaded — use founder-stage best practices)";
+    return "(no core frameworks loaded)";
   }
 
   return frameworks
@@ -125,9 +128,9 @@ function buildFrameworksBlock(frameworks: Record<string, unknown>[]): string {
           : typeof row.title === "string"
             ? row.title
             : `Framework ${index + 1}`;
-      return `[${index + 1}] ${label}\n${JSON.stringify(row, null, 2)}`;
+      return `[${index + 1}] ${label}`;
     })
-    .join("\n\n---\n\n");
+    .join("\n");
 }
 
 function extractSubredditFromUrl(sourceUrl: string): string | null {
@@ -310,6 +313,7 @@ function buildSystemPrompt(
   frameworks: Record<string, unknown>[],
   hasLiveStream: boolean,
   masterBlueprintBlock: string | null,
+  personaContextBlock: string,
   taskCount: number,
   tier: SubscriptionTierId
 ): string {
@@ -322,6 +326,14 @@ function buildSystemPrompt(
 
 You receive: App DNA, the user's Master Strategy Blueprint (when present), internal growth playbooks (core frameworks), yesterday's execution history, and a live scraper data stream from discovery_leads and plug_alerts.
 ${blueprintSection}
+FOUNDER PERSONA CONTEXT (mandatory):
+${personaContextBlock}
+
+PERSONA INJECTION RULE (mandatory):
+- Adopt the specific background, tone, and historical details provided in this founder persona context.
+- Integrate these facts seamlessly in each task draft.
+- Do not invent generic backstories.
+
 Your job: ${taskInstruction} Output exactly ${taskCount} fresh, logical marketing tasks for TODAY.
 
 ${
@@ -347,18 +359,30 @@ ADAPTATION RULES (mandatory):
 - Alternate action types and communities when possible.
 - Tasks must be specific, executable in under 45 minutes each, and aligned with their App DNA platforms.
 
-SECRET PLAYBOOKS (core_frameworks — treat as canonical strategy logic):
+3-MODE CONTENT SELECTOR (mandatory):
+- action_type must be exactly one of: plug, hype, deflect.
+- plug: practical value-first comment that introduces product only when naturally relevant.
+- hype: amplify signal by celebrating outcomes, social proof, or momentum.
+- deflect: calm, credible reframing when objections or skepticism appear.
+
+FOUNDATION PLAYBOOK LABELS (core_frameworks):
 ${buildFrameworksBlock(frameworks)}
 
 OUTPUT FORMAT — raw JSON array only, no markdown fences, no wrapper object:
 [
   {
-    "action_type": "short snake_case verb phrase e.g. comment_sprint",
+    "action_type": "plug | hype | deflect",
     "target_community": "platform + community e.g. r/SaaS on Reddit",
     "instruction_to_user": "clear imperative instruction for the founder",
-    "ai_generated_draft": "ready-to-use draft copy or bullet outline they can paste"
+    "draft_text": "ready-to-use draft copy or bullet outline they can paste",
+    "media_directives": ["required proof asset 1", "required proof asset 2"]
   }
 ]
+
+NATIVE PROOF PROTOCOL (mandatory):
+- Based on the framework's proof requirements, output 1-2 explicit directives for visual proof assets (screenshot, video, analytics chart).
+- These assets are attached directly on the target platform by the founder.
+- Never suggest uploading media inside this app.
 
 Return exactly ${taskCount} objects in the array.`;
 }
@@ -407,6 +431,7 @@ async function generateTasksWithOpenAI(params: {
   liveStreamBlock: string;
   hasLiveStream: boolean;
   masterBlueprintBlock: string | null;
+  personaContextBlock: string;
   taskCount: number;
   tier: SubscriptionTierId;
 }): Promise<ReflectionTask[]> {
@@ -445,6 +470,7 @@ ${reflectionTaskPromptLine(tier)}`;
               params.frameworks,
               params.hasLiveStream,
               params.masterBlueprintBlock,
+              params.personaContextBlock,
               taskCount,
               tier
             ),
@@ -514,7 +540,12 @@ async function insertReflectionTasks(
     action_type: task.action_type.trim(),
     target_community: task.target_community.trim(),
     instruction_to_user: task.instruction_to_user.trim(),
-    ai_generated_draft: task.ai_generated_draft.trim(),
+    ai_generated_draft: `${task.draft_text.trim()}
+
+⚠️ REQUIRED PROOF
+${task.media_directives.map((directive) => `- ${directive.trim()}`).join("\n")}
+
+Attach these files directly to your post on the target platform. Do not upload them here.`,
     task_status: "pending" as const,
   }));
 
@@ -551,6 +582,20 @@ export async function processUserReflection(params: {
     loadMasterBlueprintContext(userId),
     fetchUserSubscriptionTier(supabaseServer, userId),
   ]);
+  const { data: profileData } = await supabaseServer
+    .from("profiles")
+    .select("persona_context")
+    .eq("id", userId)
+    .maybeSingle();
+  const personaContextBlock = JSON.stringify(
+    profileData?.persona_context &&
+      typeof profileData.persona_context === "object" &&
+      !Array.isArray(profileData.persona_context)
+      ? profileData.persona_context
+      : { note: "No founder persona context captured yet." },
+    null,
+    2
+  );
 
   const taskCount = resolveDailyReflectionTaskLimit(tier);
   const historySummary = buildHistorySummary(history);
@@ -562,6 +607,7 @@ export async function processUserReflection(params: {
     liveStreamBlock,
     hasLiveStream: liveStream.length > 0,
     masterBlueprintBlock: blueprintContext.promptBlock,
+    personaContextBlock,
     taskCount,
     tier,
   });

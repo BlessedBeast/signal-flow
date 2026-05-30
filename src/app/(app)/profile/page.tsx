@@ -16,23 +16,24 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  getBillingTier,
+  parseSubscriptionTier,
+  type SubscriptionTierId,
+} from "@/lib/billing/tiers";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { useSignalFlow } from "@/lib/signalflow-store";
 import { cn } from "@/lib/utils";
 
 type AccountHealth = "healthy" | "pending_verification" | "attention";
 
-const SUBSCRIPTION_TIERS = {
-  free: {
-    label: "Free Sandbox Plan",
-    description: "Core discovery stream, vault storage, and manual lead scans.",
-  },
-  founder: {
-    label: "Founder Elite Tracker",
-    description:
-      "Unlimited mining, priority alerts, and advanced velocity tools.",
-  },
-} as const;
+const TIER_BADGE_CLASS: Record<SubscriptionTierId, string> = {
+  free: "border-border/60 bg-muted/40 text-muted-foreground",
+  bootstrapper:
+    "border-primary/30 bg-primary/10 text-primary",
+  founder:
+    "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+};
 
 function resolveAccountHealth(user: User | null): AccountHealth {
   if (!user) return "attention";
@@ -105,14 +106,13 @@ export default function ProfilePage() {
   }, []);
 
   const accountHealth = useMemo(() => resolveAccountHealth(user), [user]);
-
-  const activeTier = SUBSCRIPTION_TIERS.free;
+  const tierId = parseSubscriptionTier(profile.subscription_tier);
+  const tier = getBillingTier(tierId);
 
   async function handleManageBilling() {
     if (billingLoading) return;
     setBillingLoading(true);
     try {
-      // Future: POST /api/billing/portal → Stripe Customer Portal URL
       await new Promise((resolve) => setTimeout(resolve, 400));
       toast.info("Stripe Customer Portal redirect will be wired here.");
     } finally {
@@ -232,18 +232,36 @@ export default function ProfilePage() {
           </h2>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Track your plan tier and manage Stripe invoices when billing goes live.
+          Your active execution tier and daily limits from the unified vault model.
         </p>
 
         <div className="mt-6 rounded-lg border border-border/60 bg-background/40 p-5">
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Active tier
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              Active tier
+            </p>
+            <Badge
+              variant="outline"
+              className={cn("font-mono text-[10px] uppercase", TIER_BADGE_CLASS[tierId])}
+            >
+              {tierId}
+            </Badge>
+          </div>
           <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-            {activeTier.label}
+            {tier.name}
+            <span className="ml-2 text-base font-normal text-muted-foreground">
+              · {tier.priceLabel}
+            </span>
           </p>
-          <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-            {activeTier.description}
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            {tier.dailyDropsLabel} · {tier.activeSerperQueryLimit} tracking quer
+            {tier.activeSerperQueryLimit === 1 ? "y" : "ies"} ·{" "}
+            {tier.activeFrameworkSequenceLimit} framework sequence
+            {tier.activeFrameworkSequenceLimit === 1 ? "" : "s"}
+            {tier.oneClickReplyUnlocked
+              ? " · 1-click reply unlocked"
+              : " · reply pipeline locked"}
+            {tier.automatedLeadFetch ? " · 5 AM auto-fetch" : ""}
           </p>
         </div>
 

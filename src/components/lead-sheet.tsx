@@ -87,11 +87,13 @@ export function LeadSheet({
   >(null);
   const [isGeneratingBaseDraft, setIsGeneratingBaseDraft] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [mediaDirectives, setMediaDirectives] = useState<string[]>([]);
 
   const isDraftGenerating = isGeneratingBaseDraft || isRegenerating;
 
   const leadId = lead?.id;
   const leadDraftContent = lead?.ai_draft_content;
+  const leadMediaDirectives = lead?.media_directives;
 
   useEffect(() => {
     if (!leadId || !open) return;
@@ -102,7 +104,8 @@ export function LeadSheet({
     setDraftText(
       hasDraftContent(leadDraftContent) ? leadDraftContent!.trim() : ""
     );
-  }, [leadId, leadDraftContent, open]);
+    setMediaDirectives(leadMediaDirectives ?? []);
+  }, [leadId, leadDraftContent, leadMediaDirectives, open]);
 
   async function handleGenerateInitialDraft() {
     if (!lead) return;
@@ -126,6 +129,7 @@ export function LeadSheet({
         reply?: string;
         conversation_history?: Lead["conversation_history"];
         ai_draft_content?: string;
+        media_directives?: string[];
         error?: string;
       };
 
@@ -137,10 +141,12 @@ export function LeadSheet({
       const reply = json.reply;
       onUpdateLead(lead.id, {
         ai_draft_content: json.ai_draft_content ?? reply,
+        media_directives: json.media_directives ?? [],
         conversation_history:
           json.conversation_history ?? lead.conversation_history,
         status: lead.status === "new" ? "drafted" : lead.status,
       });
+      setMediaDirectives(json.media_directives ?? []);
       setDraftText(reply);
       toast.success("Initial draft ready");
     } catch (err) {
@@ -178,6 +184,7 @@ export function LeadSheet({
         reply?: string;
         conversation_history?: Lead["conversation_history"];
         ai_draft_content?: string;
+        media_directives?: string[];
         error?: string;
         details?: string;
       };
@@ -196,10 +203,12 @@ export function LeadSheet({
       setDraftText(reply);
       onUpdateLead(lead.id, {
         ai_draft_content: json.ai_draft_content ?? reply,
+        media_directives: json.media_directives ?? [],
         conversation_history:
           json.conversation_history ?? lead.conversation_history,
         status: lead.status === "new" ? "drafted" : lead.status,
       });
+      setMediaDirectives(json.media_directives ?? []);
       toast.success("Fresh draft prepared!", { id: toastId });
     } catch {
       toast.error("Failed to cycle draft engine.", { id: toastId });
@@ -632,6 +641,42 @@ export function LeadSheet({
                   </div>
                 )}
               </div>
+
+              {mediaDirectives.length > 0 ? (
+                <div className="space-y-2 rounded-xl border border-amber-500/35 bg-amber-500/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                    ⚠ Required Proof
+                  </p>
+                  <ul className="space-y-2">
+                    {mediaDirectives.map((directive, index) => (
+                      <li
+                        key={`${index}-${directive.slice(0, 20)}`}
+                        className="flex items-start gap-2 text-sm text-foreground"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 size-4 accent-primary"
+                          aria-label={`Proof directive ${index + 1}`}
+                        />
+                        <span>{directive}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                    Attach these files directly to your post on{" "}
+                    {lead.platform === "x"
+                      ? "X"
+                      : lead.platform === "reddit"
+                        ? "Reddit"
+                        : lead.platform === "hackernews"
+                          ? "Hacker News"
+                          : lead.platform === "indiehackers"
+                            ? "Indie Hackers"
+                            : "Product Hunt"}
+                    . Do not upload them here.
+                  </p>
+                </div>
+              ) : null}
 
               {lead.conversation_history.length > 0 && (
                 <div className="space-y-3">

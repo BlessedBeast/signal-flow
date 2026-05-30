@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 
 import { parseSubscriptionTier } from "@/lib/billing/tiers";
+import { fetchUserSubscriptionTier } from "@/lib/billing/user-billing";
+import {
+  buildProfilePatchRow,
+  buildProfileUpsertRow,
+  type ProfilePatchRow,
+} from "@/lib/onboard/onboard-mappers";
 import { generateAndPersistUserBlueprint } from "@/lib/onboard/blueprint-engine";
 import { PipelineError } from "@/lib/onboard-pipeline";
 import { parseClientProductDna } from "@/lib/product-dna-schema";
 import { generateInitialReflectionTasksForUser } from "@/lib/reflection/reflection-pipeline";
+import { executeLeadHunt } from "@/lib/mining/hunt-pipeline";
 import {
   createRouteHandlerSupabase,
   resolveRouteHandlerUserId,
@@ -19,6 +26,7 @@ type VaultBody = {
   dna?: unknown;
   is_mining?: boolean;
   subscription_tier?: unknown;
+  persona_context?: unknown;
 };
 
 type VaultErrorResponse = {
@@ -27,6 +35,35 @@ type VaultErrorResponse = {
   details?: string;
   step: string | null;
 };
+
+function triggerDayOneWarmup(userId: string, dna: ProductDNA) {
+  // Fire-and-forget warmup so dashboard first-load lands with hydrated leads/tasks.
+  void executeLeadHunt(userId)
+    .then((result) => {
+      console.log(
+        `[VAULT TRACE] Day-1 lead warmup completed: released=${result.released}, queued=${result.queued}`
+      );
+    })
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn("[VAULT TRACE] Day-1 lead warmup failed:", message);
+    });
+
+  void generateInitialReflectionTasksForUser(userId, dna)
+    .then((reflection) => {
+      if (reflection.ok) {
+        console.log(
+          `[VAULT TRACE] Day-1 reflection warmup completed: inserted=${reflection.inserted ?? 0}`
+        );
+      } else {
+        console.warn("[VAULT TRACE] Day-1 reflection warmup skipped:", reflection.error);
+      }
+    })
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn("[VAULT TRACE] Day-1 reflection warmup failed:", message);
+    });
+}
 
 export async function POST(request: Request) {
   console.log("[VAULT TRACE] ===== Vault save pipeline started =====");
@@ -86,9 +123,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const tier = await fetchUserSubscriptionTier(supabase, userId);
+
     let dna: ProductDNA;
     try {
-      dna = parseClientProductDna(body.dna);
+      dna = parseClientProductDna(body.dna, tier);
       console.log("[VAULT TRACE] Product DNA schema validation passed:", {
         productName: dna.productName,
         url: dna.url,
@@ -114,32 +153,34 @@ export async function POST(request: Request) {
     const isMining =
       typeof body.is_mining === "boolean" ? body.is_mining : false;
 
-    const profilePatch: Record<string, unknown> = {
-      product_dna: dna,
-      is_mining: isMining,
-      website_url: dna.url || null,
-      mining_started_at: isMining ? new Date().toISOString() : null,
-    };
+    const profilePatch: ProfilePatchRow = buildProfilePatchRow({
+      dna,
+      isMining,
+    });
+    if (body.persona_context !== undefined) {
+      profilePatch.persona_context = body.persona_context;
+    }
+
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const currentTier = parseSubscriptionTier(existingProfile?.subscription_tier);
 
     if (body.subscription_tier !== undefined) {
       const requestedTier = parseSubscriptionTier(body.subscription_tier);
-      const { data: existingProfile } = await supabase
-        .from("profiles")
-        .select("subscription_tier")
-        .eq("id", userId)
-        .maybeSingle();
 
-      const currentTier = parseSubscriptionTier(
-        existingProfile?.subscription_tier
-      );
-
-      if (!existingProfile || currentTier === "hobbyist") {
+      if (!existingProfile || currentTier === "free") {
         profilePatch.subscription_tier = requestedTier;
         console.log(
           "[VAULT TRACE] subscription_tier set:",
           requestedTier
         );
       }
+    } else if (!existingProfile) {
+      profilePatch.subscription_tier = "free";
     }
 
     console.log("[VAULT TRACE] Executing profiles update for user:", userId);
@@ -175,10 +216,7 @@ export async function POST(request: Request) {
       const { data: upsertedRows, error: upsertError } = await supabase
         .from("profiles")
         .upsert(
-          {
-            id: userId,
-            ...profilePatch,
-          },
+          buildProfileUpsertRow(userId, profilePatch),
           { onConflict: "id" }
         )
         .select("id");
@@ -205,6 +243,8 @@ export async function POST(request: Request) {
       console.log("[VAULT TRACE] Database update succeeded:", updatedRows);
     }
 
+    triggerDayOneWarmup(userId, dna);
+
     try {
       const blueprint = await generateAndPersistUserBlueprint({
         supabase,
@@ -224,32 +264,6 @@ export async function POST(request: Request) {
           : "Master blueprint generation failed";
       console.error(
         "[VAULT TRACE] Master blueprint failed (vault save still succeeded):",
-        message
-      );
-    }
-
-    try {
-      const reflection = await generateInitialReflectionTasksForUser(
-        userId,
-        dna
-      );
-      if (reflection.ok && (reflection.inserted ?? 0) > 0) {
-        console.log(
-          `[VAULT TRACE] Day-1 reflection tasks seeded: ${reflection.inserted}`
-        );
-      } else if (!reflection.ok) {
-        console.warn(
-          "[VAULT TRACE] Day-1 reflection skipped:",
-          reflection.error
-        );
-      }
-    } catch (reflectionErr) {
-      const message =
-        reflectionErr instanceof Error
-          ? reflectionErr.message
-          : "Day-1 reflection failed";
-      console.error(
-        "[VAULT TRACE] Day-1 reflection failed (vault save still succeeded):",
         message
       );
     }

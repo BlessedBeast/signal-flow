@@ -5,19 +5,31 @@ import { Loader2 } from "lucide-react";
 
 import { UpgradeGate } from "@/components/billing/upgrade-gate";
 import {
-  getTierGateCopy,
+  getBillingTier,
   meetsMinimumTier,
   parseSubscriptionTier,
   type SubscriptionTierId,
-} from "@/lib/billing/tier-access";
-import { getBillingTier } from "@/lib/billing/tiers";
+} from "@/lib/billing/tiers";
 import { useSignalFlow } from "@/lib/signalflow-store";
 
 type TierGatedToolProps = {
-  minimumTier: SubscriptionTierId;
+  /** Minimum tier required: `bootstrapper` or `founder`. */
+  minimumTier: Extract<SubscriptionTierId, "bootstrapper" | "founder">;
   moduleLabel?: string;
   children: ReactNode;
 };
+
+function getTierGateCopy(params: {
+  minimumTier: SubscriptionTierId;
+  requiredPlanName: string;
+  moduleLabel?: string;
+}): { headline: string; body: string } {
+  const plan = getBillingTier(params.minimumTier);
+  return {
+    headline: "This module requires an upgraded execution tier.",
+    body: `${params.moduleLabel ?? "This tool"} is included on ${plan.name} (${plan.priceLabel}) and above. Upgrade to ${params.requiredPlanName} to run it at full velocity.`,
+  };
+}
 
 export function TierGatedTool({
   minimumTier,

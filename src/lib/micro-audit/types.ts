@@ -1,3 +1,4 @@
+import type { SubscriptionTierId } from "@/lib/billing/tiers";
 import type { ProductDNA } from "@/lib/signalflow-types";
 
 export type MicroAuditTeaser = {
@@ -28,7 +29,7 @@ export type PendingMicroAuditPayload = {
   dna: ProductDNA;
   savedAt: string;
   /** Freemium path chosen on micro-audit paywall */
-  signupTier?: "hobbyist";
+  signupTier?: Extract<SubscriptionTierId, "free">;
 };
 
 export const MICRO_AUDIT_STORAGE_KEY = "signalflow_micro_audit_pending";

@@ -140,9 +140,13 @@ export function BipWorkspace() {
         return;
       }
 
-      const res = await fetch("/api/bip/generate", {
+      const res = await fetch("/api/velocity/bip", {
         method: "POST",
         headers,
+        body: JSON.stringify({
+          postType: "ship",
+          currentFocus: "Share today progress update",
+        }),
       });
 
       const json = (await res.json()) as {

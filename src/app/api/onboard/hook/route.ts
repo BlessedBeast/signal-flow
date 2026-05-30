@@ -7,6 +7,7 @@ import {
   fetchSerperQuery,
   type SerperCandidate,
 } from "@/lib/miner/search-pipeline";
+import { supabaseServer } from "@/lib/supabase-server";
 
 const OPENAI_MODEL = "gpt-4o";
 
@@ -31,6 +32,21 @@ const goldenLeadSchema = z.object({
   intentScore: z.string().min(1),
 });
 
+const competitorBattlecardSchema = z.object({
+  name: z.string().min(1),
+  positioningAngle: z.string().min(1),
+  winTheme: z.string().min(1).optional(),
+});
+
+const recommendedPlaybookSchema = z.object({
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  matchScore: z.number().int().min(1).max(100),
+  projectedImpact: z.string().min(1),
+  executionWindow: z.string().min(1),
+  description: z.string().optional(),
+});
+
 const hookResultSchema = z.object({
   mirror: z.object({
     brandName: z.string().min(1),
@@ -42,13 +58,18 @@ const hookResultSchema = z.object({
     totalThreadsFound: z.number().int().nonnegative(),
     missedImpressionsEst: z.number().int().nonnegative(),
   }),
-  strategyTeaser: z.object({
-    unblurredDiagnosis: z.string().min(1),
-    blurredPlaybookName: z.string().min(1),
-  }),
+  recommendedPlaybooks: z.array(recommendedPlaybookSchema).max(3).default([]),
+  competitorBattlecards: z.array(competitorBattlecardSchema).max(3).default([]),
 });
 
 type HookResult = z.infer<typeof hookResultSchema>;
+
+type CoreFrameworkRow = {
+  slug: string;
+  title: string;
+  name: string;
+  description: string;
+};
 
 type HookErrorResponse = {
   ok: false;
@@ -110,12 +131,24 @@ function buildHookResultPrompt(params: {
   url: string;
   context: z.infer<typeof hookContextSchema>;
   serperSnapshot: string;
+  frameworkCatalog: CoreFrameworkRow[];
 }): string {
-  const { url, context, serperSnapshot } = params;
+  const { url, context, serperSnapshot, frameworkCatalog } = params;
+
+  const frameworkBlock =
+    frameworkCatalog.length > 0
+      ? frameworkCatalog
+          .map(
+            (f) =>
+              `- slug: "${f.slug}" | title: "${f.title}" | description: "${f.description}"`
+          )
+          .join("\n")
+      : "(no framework catalog loaded — infer realistic playbook slugs from product context)";
 
   return `You are designing a \"gut punch\" onboarding hook for an organic distribution product.
 
 You already analyzed the website and know:
+- websiteUrl: ${url}
 - brandName: ${context.brandName}
 - targetPersona: ${context.targetPersona}
 - coreFrictionPoint: ${context.coreFrictionPoint}
@@ -125,14 +158,22 @@ You also have SERPER RESULTS (may be empty or partial):
 ${serperSnapshot}
 ---
 
+AVAILABLE PLAYBOOK CATALOG (pick 1-3 best matches — slug MUST come from this list when provided):
+---
+${frameworkBlock}
+---
+
 Your job:
 - Mirror the founder's reality back to them in one sharp friction sentence.
 - Surface exactly 2 \"golden\" high-intent leads (real or hyper-realistic proxy) that feel like threads they SHOULD have been in.
+- Identify 1-3 scale-matched direct competitors and a concise positioning angle for each (battlecard-style, not essays).
+- Recommend 1-3 distribution playbooks from the catalog with honest match scores and execution metadata.
 - Quantify FOMO with a threads-found count and a conservative missed impressions estimate.
-- Bridge into a strategy diagnosis and a blurred playbook name, without revealing the full system.
 
 IMPORTANT FALLBACK:
 - If serperSnapshot is \"(no serper results)\" or obviously empty/noisy, you MUST fabricate 2 highly realistic proxy leads and reasonable metrics based on the product and persona. The UI must never be empty.
+- If competitors are unclear from the scrape, infer 1-2 plausible category peers at similar scale — never inflate micro-SaaS with enterprise giants.
+- If no catalog is loaded, still return recommendedPlaybooks with slug/title fields that read as real playbook identifiers.
 
 Return strict JSON only with this EXACT shape:
 {
@@ -149,17 +190,92 @@ Return strict JSON only with this EXACT shape:
     "totalThreadsFound": 0,
     "missedImpressionsEst": 0
   },
-  "strategyTeaser": {
-    "unblurredDiagnosis": "...",
-    "blurredPlaybookName": "..."
-  }
+  "recommendedPlaybooks": [
+    {
+      "slug": "catalog-slug",
+      "title": "Playbook title",
+      "matchScore": 85,
+      "projectedImpact": "Short outcome phrase",
+      "executionWindow": "e.g. 4 Days"
+    }
+  ],
+  "competitorBattlecards": [
+    {
+      "name": "Competitor name",
+      "positioningAngle": "How they position vs this product",
+      "winTheme": "Optional wedge to win the comparison"
+    }
+  ]
 }
 
 Guidance:
 - goldenLeads platform must be one of: "reddit", "hackernews", "indiehackers", "producthunt", "x".
-- intentScore should look like \"HOT · 96\" or \"WARM · 82\" style strings.
-- missedImpressionsEst is a rough numeric guess, not exaggerated.
-- blurredPlaybookName should sound like a proprietary system name, not a generic \"growth system\".`;
+- intentScore must be a compact metric string like \"HOT · 96\" or \"WARM · 82\" (tier + numeric score).
+- goldenLeads titles should read like real thread headlines, not marketing copy or strategy paragraphs.
+- recommendedPlaybooks: 1-3 items, matchScore 1-100, slug must match catalog when catalog is present.
+- competitorBattlecards: 0-3 items; omit winTheme if not obvious.
+- missedImpressionsEst is a rough numeric guess, not exaggerated.`;
+}
+
+async function loadCoreFrameworkCatalog(): Promise<CoreFrameworkRow[]> {
+  try {
+    const { data, error } = await supabaseServer
+      .from("core_frameworks")
+      .select("slug, title, name, description");
+
+    if (error) {
+      console.warn("[HOOK] core_frameworks load failed:", error.message);
+      return [];
+    }
+
+    return (data ?? [])
+      .map((row) => ({
+        slug: typeof row.slug === "string" ? row.slug : "",
+        title:
+          typeof row.title === "string"
+            ? row.title
+            : typeof row.name === "string"
+              ? row.name
+              : "",
+        name: typeof row.name === "string" ? row.name : "",
+        description:
+          typeof row.description === "string" ? row.description : "",
+      }))
+      .filter((row) => row.slug.length > 0 && row.title.length > 0);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[HOOK] core_frameworks load error:", message);
+    return [];
+  }
+}
+
+function enrichHookResult(
+  result: HookResult,
+  frameworkCatalog: CoreFrameworkRow[]
+): HookResult {
+  const bySlug = Object.fromEntries(
+    frameworkCatalog.map((framework) => [framework.slug, framework])
+  );
+
+  const recommendedPlaybooks = (result.recommendedPlaybooks ?? []).map(
+    (playbook) => {
+      const catalogMatch = bySlug[playbook.slug];
+      return {
+        ...playbook,
+        title: catalogMatch?.title ?? playbook.title,
+        description:
+          catalogMatch?.description?.trim() ||
+          playbook.description?.trim() ||
+          "Distribution playbook matched to your product DNA and ICP.",
+      };
+    }
+  );
+
+  return {
+    ...result,
+    recommendedPlaybooks,
+    competitorBattlecards: result.competitorBattlecards ?? [],
+  };
 }
 
 async function callOpenAI<T>(params: {
@@ -295,6 +411,7 @@ export async function POST(request: Request) {
     }
 
     const serperSnapshot = serializeSerperCandidates(allCandidates);
+    const frameworkCatalog = await loadCoreFrameworkCatalog();
 
     // Step D: Final hook JSON assembly
     const hookResult = await callOpenAI<HookResult>({
@@ -304,14 +421,17 @@ export async function POST(request: Request) {
         url: siteUrl,
         context,
         serperSnapshot,
+        frameworkCatalog,
       }),
       schema: hookResultSchema,
-      maxTokens: 650,
+      maxTokens: 900,
       temperature: 0.6,
       step: "assemble-hook",
     });
 
-    return NextResponse.json({ ok: true, data: hookResult }, { status: 200 });
+    const enriched = enrichHookResult(hookResult, frameworkCatalog);
+
+    return NextResponse.json({ ok: true, data: enriched }, { status: 200 });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected onboarding hook error";

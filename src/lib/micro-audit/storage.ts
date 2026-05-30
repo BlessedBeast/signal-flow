@@ -1,3 +1,5 @@
+import type { SubscriptionTierId } from "@/lib/billing/tiers";
+
 import type { PendingMicroAuditPayload } from "@/lib/micro-audit/types";
 import {
   MICRO_AUDIT_STORAGE_KEY,
@@ -33,7 +35,9 @@ export function clearPendingMicroAudit(): void {
   }
 }
 
-export function saveSignupTierPreference(tier: "hobbyist"): void {
+export function saveSignupTierPreference(
+  tier: Extract<SubscriptionTierId, "free">
+): void {
   if (typeof window === "undefined") return;
   try {
     sessionStorage.setItem(SIGNUP_TIER_STORAGE_KEY, tier);
@@ -42,11 +46,12 @@ export function saveSignupTierPreference(tier: "hobbyist"): void {
   }
 }
 
-export function readSignupTierPreference(): "hobbyist" | null {
+export function readSignupTierPreference(): Extract<SubscriptionTierId, "free"> | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = sessionStorage.getItem(SIGNUP_TIER_STORAGE_KEY);
-    return raw === "hobbyist" ? "hobbyist" : null;
+    if (raw === "free" || raw === "hobbyist") return "free";
+    return null;
   } catch {
     return null;
   }
@@ -63,24 +68,24 @@ export function clearSignupTierPreference(): void {
 
 /** Signup URL preserving micro-audit session handoff query flags */
 export function buildMicroAuditSignupHref(options?: {
-  tier?: "hobbyist";
+  tier?: Extract<SubscriptionTierId, "free">;
 }): string {
   const params = new URLSearchParams({ from: "micro-audit" });
-  if (options?.tier === "hobbyist") {
-    params.set("tier", "hobbyist");
+  if (options?.tier === "free") {
+    params.set("tier", "free");
   }
   return `/signup?${params.toString()}`;
 }
 
 export function persistMicroAuditHandoff(
   payload: PendingMicroAuditPayload,
-  options?: { signupTier?: "hobbyist" }
+  options?: { signupTier?: Extract<SubscriptionTierId, "free"> }
 ): void {
   savePendingMicroAudit({
     ...payload,
     ...(options?.signupTier ? { signupTier: options.signupTier } : {}),
   });
-  if (options?.signupTier === "hobbyist") {
-    saveSignupTierPreference("hobbyist");
+  if (options?.signupTier === "free") {
+    saveSignupTierPreference("free");
   }
 }

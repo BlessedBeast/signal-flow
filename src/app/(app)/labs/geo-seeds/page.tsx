@@ -243,7 +243,7 @@ export default function GeoSeedsPage() {
   }
 
   return (
-    <TierGatedTool minimumTier="growth_studio" moduleLabel="GEO Seed Engine">
+    <TierGatedTool minimumTier="founder" moduleLabel="GEO Seed Engine">
       <div className="space-y-6">
         <div className="mb-6 rounded-xl glass p-5">
           <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">

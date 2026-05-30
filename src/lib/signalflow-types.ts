@@ -32,6 +32,8 @@ export type Lead = {
   intent_score: number;
   status: LeadStatus;
   ai_draft_content: string | null;
+  /** Parsed from `discovery_leads.media_directives` JSONB. */
+  media_directives: string[];
   conversation_history: ConversationTurn[];
   source_url: string;
   /** Optional API alias for `source_url` (one-click outbound navigation). */
@@ -42,6 +44,9 @@ export type Lead = {
   author: string;
   subreddit: string | null;
 };
+
+/** Alias for pipeline/API lead payloads (`discovery_leads` table). */
+export type DiscoveryLead = Lead;
 
 export type ProductDNA = {
   productName: string;
@@ -66,11 +71,19 @@ export const DEFAULT_SERPER_QUERIES = [
   "site:producthunt.com/discussions (recommend OR tool) (validation OR feasibility) -trading",
 ] as const;
 
+export type FrameworkStepTracking = Record<string, number>;
+
 export type Profile = {
   is_mining: boolean;
+  /** Single product vault — one `product_dna` object per profile (not a vault array). */
   product_dna: ProductDNA | null;
+  persona_context: Record<string, unknown> | null;
   competitor_battlecards: CompetitorBattlecards;
   subscription_tier: SubscriptionTierId;
+  current_streak: number;
+  longest_streak: number;
+  last_action_at: string | null;
+  framework_step_tracking: FrameworkStepTracking;
 };
 
 export const initialDNA: ProductDNA = {

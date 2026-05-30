@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
 
-import { runReflectionCron } from "@/lib/reflection/reflection-pipeline";
+import { publishWorkerMessage } from "@/lib/qstash";
+import { supabaseServer } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 function authorizeCron(request: Request): boolean {
+  const vercelCronHeader = request.headers.get("x-vercel-cron");
+  if (vercelCronHeader) {
+    return true;
+  }
+
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
 
-  const url = new URL(request.url);
-  const param = url.searchParams.get("secret");
-  return param === secret;
+  const auth = request.headers.get("authorization");
+  return auth === `Bearer ${secret}`;
 }
 
-export async function GET(request: Request) {
+async function executeReflectionCron(request: Request) {
   if (!authorizeCron(request)) {
     return NextResponse.json(
       { ok: false, error: "Unauthorized" },
@@ -33,19 +38,34 @@ export async function GET(request: Request) {
   console.log("\x1b[36m[REFLECTION CRON]\x1b[0m Live Reflection Engine started");
 
   try {
-    const { processed, results } = await runReflectionCron();
+    const { data: profiles, error } = await supabaseServer
+      .from("profiles")
+      .select("id")
+      .not("product_dna", "is", null);
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
 
-    const succeeded = results.filter((r) => r.ok).length;
+    const publishResults = await Promise.allSettled(
+      (profiles ?? []).map((profile) =>
+        publishWorkerMessage("/api/worker/reflection", {
+          userId: profile.id as string,
+        })
+      )
+    );
+    const enqueued = publishResults.filter((result) => result.status === "fulfilled").length;
+    const failed = publishResults.length - enqueued;
     console.log(
-      `\x1b[36m[REFLECTION CRON]\x1b[0m Finished — ${succeeded}/${processed} users reflected`
+      `\x1b[36m[REFLECTION CRON]\x1b[0m Fan-out enqueued ${enqueued}/${publishResults.length} reflection jobs`
     );
 
     return NextResponse.json(
       {
         ok: true,
-        processed,
-        succeeded,
-        results,
+        mode: "fanout",
+        scheduled: publishResults.length,
+        enqueued,
+        failed,
       },
       { status: 200 }
     );
@@ -58,12 +78,10 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST() {
-  return NextResponse.json(
-    {
-      ok: false,
-      error: "Method not allowed. GET with ?secret=CRON_SECRET query parameter.",
-    },
-    { status: 405 }
-  );
+export async function GET(request: Request) {
+  return executeReflectionCron(request);
+}
+
+export async function POST(request: Request) {
+  return executeReflectionCron(request);
 }

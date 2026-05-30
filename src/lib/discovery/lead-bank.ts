@@ -4,14 +4,12 @@ import {
   resolveDailyDropQuota as resolveDailyDropQuotaForTier,
   type SubscriptionTierId,
 } from "@/lib/billing/tiers";
-import {
-  DAILY_LIMIT,
-  DISCOVERY_LEADS_TABLE,
-} from "@/lib/discovery/constants";
+import { fetchUserSubscriptionTier } from "@/lib/billing/user-billing";
+import { DISCOVERY_LEADS_TABLE } from "@/lib/discovery/constants";
 import type { SerperCandidate } from "@/lib/miner/search-pipeline";
 import { supabaseServer } from "@/lib/supabase-server";
 
-export { DAILY_LIMIT, DISCOVERY_LEADS_TABLE } from "@/lib/discovery/constants";
+export { DISCOVERY_LEADS_TABLE } from "@/lib/discovery/constants";
 
 export type DiscoveryLeadStatus =
   | "queued"
@@ -33,24 +31,19 @@ export type DailyReleaseResult = {
   activeCount: number;
   queuedCount: number;
   released: number;
-  /** Plan baseline batch size for this daily drop (e.g. 15 or 30). */
   dailyDropQuota: number;
 };
 
 /**
- * Resolves per-user Daily Drop batch size from subscription tier.
- * Pass `tier` when already loaded; otherwise defaults to Hobbyist (1).
+ * Tier daily drop batch size: free = 1, bootstrapper = 10, founder = 50.
  */
 export function resolveDailyDropQuota(
   _userId?: string,
   tier?: SubscriptionTierId
 ): number {
   void _userId;
-  return resolveDailyDropQuotaForTier(tier ?? "hobbyist");
+  return resolveDailyDropQuotaForTier(tier ?? "free");
 }
-
-/** @deprecated Use tier-based `resolveDailyDropQuota`; kept for legacy imports. */
-export const LEGACY_DAILY_LIMIT = DAILY_LIMIT;
 
 const bankLog = {
   info: (msg: string) =>
@@ -158,12 +151,15 @@ export async function queueDiscoveryLead(
 export async function executeDailyReleaseProtocol(
   supabase: SupabaseClient,
   userId: string,
-  options?: { dailyDropQuota?: number }
+  options?: { dailyDropQuota?: number; tier?: SubscriptionTierId }
 ): Promise<DailyReleaseResult> {
-  const dailyDropQuota = options?.dailyDropQuota ?? resolveDailyDropQuota(userId);
+  const tier =
+    options?.tier ?? (await fetchUserSubscriptionTier(supabase, userId));
+  const dailyDropQuota =
+    options?.dailyDropQuota ?? resolveDailyDropQuota(userId, tier);
 
   bankLog.info(
-    `Daily Drop Protocol — user ${userId} | quota ${dailyDropQuota}`
+    `Daily Drop Protocol — user ${userId} | tier ${tier} | quota ${dailyDropQuota}`
   );
 
   const [activeCount, queuedCount] = await Promise.all([
@@ -228,17 +224,23 @@ export async function executeDailyReleaseProtocol(
 export async function executeDailyReleaseForUser(
   userId: string
 ): Promise<DailyReleaseResult> {
-  return executeDailyReleaseProtocol(supabaseServer, userId);
+  const tier = await fetchUserSubscriptionTier(supabaseServer, userId);
+  return executeDailyReleaseProtocol(supabaseServer, userId, {
+    tier,
+    dailyDropQuota: resolveDailyDropQuota(userId, tier),
+  });
 }
 
 export async function getLeadBankStats(
   supabase: SupabaseClient,
   userId: string
 ): Promise<{ activeCount: number; queuedCount: number; dailyLimit: number }> {
+  const tier = await fetchUserSubscriptionTier(supabase, userId);
+  const dailyLimit = resolveDailyDropQuota(userId, tier);
   const [activeCount, queuedCount] = await Promise.all([
     countActiveDiscoveryLeads(supabase, userId),
     countQueuedDiscoveryLeads(supabase, userId),
   ]);
 
-  return { activeCount, queuedCount, dailyLimit: DAILY_LIMIT };
+  return { activeCount, queuedCount, dailyLimit };
 }

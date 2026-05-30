@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { DynamicIntakeForm } from "@/components/onboard/dynamic-intake-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,9 +28,14 @@ import {
   clearPendingMicroAudit,
   clearSignupTierPreference,
   readPendingMicroAudit,
-  readSignupTierPreference,
 } from "@/lib/micro-audit/storage";
+import {
+  parseSubscriptionTier,
+  resolveActiveFrameworkSequenceLimit,
+  resolveActiveSerperQueryLimit,
+} from "@/lib/billing/tiers";
 import { normalizeVaultDnaPayload } from "@/lib/product-dna-schema";
+import { createBrowserSupabase } from "@/lib/supabase-browser";
 import { useSignalFlow } from "@/lib/signalflow-store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -37,6 +43,11 @@ import { toast } from "sonner";
 type Phase = "input" | "processing" | "verify";
 
 type StepState = "pending" | "running" | "done";
+type FrameworkRow = {
+  slug: string;
+  title: string;
+  description: string;
+};
 
 const PROCESSING_STEPS = [
   { id: "fetch", label: "Reading site with Jina AI" },
@@ -66,6 +77,12 @@ function joinAudienceChips(chips: string[]): string {
   return chips.join(", ");
 }
 
+function normalizeProductUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  return trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { profile, setDna, setProfile, refreshProfile } = useSignalFlow();
@@ -85,7 +102,18 @@ export default function OnboardingPage() {
   const [editingQueryIndex, setEditingQueryIndex] = useState<number | null>(null);
   const [queryEditValue, setQueryEditValue] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [frameworkCatalog, setFrameworkCatalog] = useState<FrameworkRow[]>([]);
+  const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([]);
+  const [personaAnswers, setPersonaAnswers] = useState<Record<string, string>>({});
   const runIdRef = useRef(0);
+  const autoAnalyzeTriggeredRef = useRef(false);
+  const initialHadProductDnaRef = useRef(Boolean(profile.product_dna));
+  const runProcessingRef = useRef<
+    ((targetUrl: string) => Promise<void>) | null
+  >(null);
+  const userTier = parseSubscriptionTier(profile.subscription_tier);
+  const serperQueryCap = resolveActiveSerperQueryLimit(userTier);
+  const frameworkSequenceCap = resolveActiveFrameworkSequenceLimit(userTier);
 
   useEffect(() => {
     if (profile.product_dna) {
@@ -99,7 +127,52 @@ export default function OnboardingPage() {
   }, [refreshProfile]);
 
   useEffect(() => {
+    async function loadFrameworkCatalog() {
+      const supabase = createBrowserSupabase();
+      const { data, error } = await supabase.from("core_frameworks").select("*");
+      if (error) {
+        console.error("[Onboarding] framework catalog:", error.message);
+        return;
+      }
+      const mapped = (data ?? [])
+        .map((row) => {
+          const slug =
+            typeof row.slug === "string" ? row.slug : String(row.id ?? "");
+          if (!slug) return null;
+          return {
+            slug,
+            title:
+              typeof row.title === "string"
+                ? row.title
+                : typeof row.name === "string"
+                  ? row.name
+                  : slug,
+            description:
+              typeof row.description === "string" ? row.description : "",
+          } satisfies FrameworkRow;
+        })
+        .filter((row): row is FrameworkRow => row !== null);
+
+      setFrameworkCatalog(mapped);
+      setSelectedFrameworks((prev) =>
+        prev.length > 0
+          ? prev
+          : mapped
+              .slice(0, resolveActiveFrameworkSequenceLimit("free"))
+              .map((f) => f.slug)
+      );
+    }
+
+    void loadFrameworkCatalog();
+  }, []);
+
+  useEffect(() => {
     if (profile.product_dna) return;
+
+    const incomingUrl = new URLSearchParams(window.location.search)
+      .get("url")
+      ?.trim();
+    if (incomingUrl) return;
 
     const pending = readPendingMicroAudit();
     if (!pending?.dna) return;
@@ -182,13 +255,30 @@ export default function OnboardingPage() {
         toast.error(message);
       }
     },
-    []
+    [],
   );
+
+  runProcessingRef.current = runProcessing;
 
   useEffect(() => {
     return () => {
       runIdRef.current += 1;
     };
+  }, []);
+
+  useEffect(() => {
+    if (autoAnalyzeTriggeredRef.current) return;
+    if (initialHadProductDnaRef.current) return;
+
+    const incomingUrl = new URLSearchParams(window.location.search)
+      .get("url")
+      ?.trim();
+    if (!incomingUrl) return;
+
+    autoAnalyzeTriggeredRef.current = true;
+    const normalized = normalizeProductUrl(incomingUrl);
+    setUrl(normalized);
+    void runProcessingRef.current?.(normalized);
   }, []);
 
   function handleAnalyze(e: React.FormEvent) {
@@ -198,7 +288,7 @@ export default function OnboardingPage() {
       setError("Enter your product URL to continue.");
       return;
     }
-    void runProcessing(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+    void runProcessing(normalizeProductUrl(trimmed));
   }
 
   function togglePlatform(platform: Platform) {
@@ -240,6 +330,7 @@ export default function OnboardingPage() {
   function addQueryChip() {
     const value = queryInput.trim();
     if (!value) return;
+    if (draft.activeSerperQueries.length >= serperQueryCap) return;
     setDraft((prev) => ({
       ...prev,
       activeSerperQueries: [...prev.activeSerperQueries, value],
@@ -292,6 +383,7 @@ export default function OnboardingPage() {
   function addCompetitorChip() {
     const value = competitorInput.trim();
     if (!value) return;
+    if (draft.competitors.length >= 3) return;
     if (draft.competitors.includes(value)) {
       setCompetitorInput("");
       return;
@@ -320,11 +412,26 @@ export default function OnboardingPage() {
       }
 
       const vaultDna = normalizeVaultDnaPayload(draft);
-      const pendingAudit = readPendingMicroAudit();
-      const signupTier =
-        pendingAudit?.signupTier ?? readSignupTierPreference() ?? undefined;
+      readPendingMicroAudit();
 
       let res: Response;
+      const persona_context = {
+        mirror: {
+          brandName: vaultDna.productName,
+          targetPersona: vaultDna.audience,
+          coreFriction:
+            vaultDna.painPoints[0] ??
+            "Founder is still calibrating exact market friction.",
+          url: vaultDna.url,
+          oneLiner: vaultDna.oneLiner,
+        },
+        selected_frameworks: selectedFrameworks,
+        intake_answers: Object.fromEntries(
+          Object.entries(personaAnswers)
+            .map(([key, answer]) => [key, answer.trim()])
+            .filter(([, answer]) => answer.length > 0)
+        ),
+      };
       try {
         res = await fetch("/api/onboard/vault", {
           method: "POST",
@@ -332,9 +439,8 @@ export default function OnboardingPage() {
           body: JSON.stringify({
             dna: vaultDna,
             is_mining: false,
-            ...(signupTier === "hobbyist"
-              ? { subscription_tier: "hobbyist" as const }
-              : {}),
+            subscription_tier: "free",
+            persona_context,
           }),
         });
       } catch {
@@ -356,7 +462,11 @@ export default function OnboardingPage() {
       }
 
       setDna(vaultDna);
-      setProfile({ product_dna: vaultDna, is_mining: false });
+      setProfile({
+        product_dna: vaultDna,
+        is_mining: false,
+        subscription_tier: "free",
+      });
       clearPendingMicroAudit();
       clearSignupTierPreference();
       await refreshProfile();
@@ -501,6 +611,74 @@ export default function OnboardingPage() {
                 Tune identity metadata and operators before saving to your vault.
               </p>
             </div>
+
+            <section className="glass rounded-2xl p-6 space-y-4">
+              <h3 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                Select growth frameworks
+              </h3>
+              {frameworkCatalog.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Framework library is loading...
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {frameworkCatalog.map((framework) => {
+                    const active = selectedFrameworks.includes(framework.slug);
+                    return (
+                      <button
+                        key={framework.slug}
+                        type="button"
+                        onClick={() =>
+                          setSelectedFrameworks((prev) => {
+                            const exists = prev.includes(framework.slug);
+                            if (exists) {
+                              return prev.filter((slug) => slug !== framework.slug);
+                            }
+                            return [...prev, framework.slug].slice(
+                              0,
+                              frameworkSequenceCap
+                            );
+                          })
+                        }
+                        className={cn(
+                          "rounded-xl border px-4 py-3 text-left transition-colors",
+                          active
+                            ? "border-primary/35 bg-primary/10"
+                            : "glass-soft hover:border-primary/20"
+                        )}
+                      >
+                        <p className="text-sm font-semibold text-foreground">
+                          {framework.title}
+                        </p>
+                        <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {framework.slug}
+                        </p>
+                        {framework.description ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {framework.description}
+                          </p>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <DynamicIntakeForm
+              mirror={{
+                brandName: draft.productName,
+                targetPersona: draft.audience,
+                coreFriction:
+                  draft.painPoints[0] ??
+                  "Founder is still calibrating exact market friction.",
+                url: draft.url,
+                oneLiner: draft.oneLiner,
+              }}
+              selectedFrameworkSlugs={selectedFrameworks}
+              value={personaAnswers}
+              onChange={setPersonaAnswers}
+            />
 
             <section className="glass rounded-2xl p-6 space-y-4">
               <h3 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
@@ -675,11 +853,19 @@ export default function OnboardingPage() {
                   variant="outline"
                   size="sm"
                   className="glass-soft shrink-0"
+                  disabled={draft.competitors.length >= 3}
                   onClick={addCompetitorChip}
                 >
                   Add
                 </Button>
               </div>
+              {draft.competitors.length >= 3 ? (
+                <p className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                  🔒 Early Launch Guard: Active tracking is capped at a maximum of
+                  3 items for this cohort to ensure maximum priority delivery
+                  speed.
+                </p>
+              ) : null}
             </section>
 
             <section className="glass rounded-2xl p-6 space-y-4">
@@ -803,11 +989,19 @@ export default function OnboardingPage() {
                   variant="outline"
                   size="sm"
                   className="glass-soft shrink-0"
+                  disabled={draft.activeSerperQueries.length >= serperQueryCap}
                   onClick={addQueryChip}
                 >
                   Add
                 </Button>
               </div>
+              {draft.activeSerperQueries.length >= serperQueryCap ? (
+                <p className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                  Your {userTier} plan allows up to {serperQueryCap} active Serper
+                  tracking quer{serperQueryCap === 1 ? "y" : "ies"}. Upgrade on
+                  billing to add more.
+                </p>
+              ) : null}
             </section>
 
             <div className="flex flex-col gap-3 sm:flex-row">

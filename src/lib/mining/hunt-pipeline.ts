@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { resolveDailyDropQuota as resolveDailyDropQuotaForTier } from "@/lib/billing/tiers";
+import {
+  resolveActiveSerperQueryLimit,
+  resolveDailyDropQuota as resolveDailyDropQuotaForTier,
+} from "@/lib/billing/tiers";
 import { fetchUserSubscriptionTier } from "@/lib/billing/user-billing";
 import {
   countQueuedDiscoveryLeads,
@@ -118,6 +121,14 @@ export function intentTierFromScore(score: number): "HOT" | "WARM" | "COLD" {
   if (score >= 70) return "HOT";
   if (score >= 40) return "WARM";
   return "COLD";
+}
+
+export type ContentMode = "plug" | "hype" | "deflect";
+
+export function resolveContentModeFromIntent(score: number): ContentMode {
+  if (score >= 80) return "plug";
+  if (score >= 55) return "hype";
+  return "deflect";
 }
 
 function parseProductDna(raw: unknown): ProductDNA {
@@ -649,8 +660,9 @@ async function processPassCandidates(params: {
       }
 
       metrics.inserted++;
+      const mode = resolveContentModeFromIntent(intentScore);
       minerLog.success(
-        `Pass ${params.pass} vaulted — score ${intentScore} | ${candidate.platform} | ${candidate.link}`
+        `Pass ${params.pass} vaulted — score ${intentScore} (${mode}) | ${candidate.platform} | ${candidate.link}`
       );
     } catch (err) {
       if (err instanceof HuntError && err.message === "duplicate") {
@@ -704,13 +716,13 @@ export async function executeHuntLoop(userId: string): Promise<HuntResult> {
     const { dna, personaContext } = await readConfigAndAcquireLock(userId);
     lockHeld = true;
 
-    activeQueries = [...dna.activeSerperQueries];
-
     const subscriptionTier = await fetchUserSubscriptionTier(
       supabaseServer,
       userId
     );
     const dailyDropQuota = resolveDailyDropQuotaForTier(subscriptionTier);
+    const queryCap = resolveActiveSerperQueryLimit(subscriptionTier);
+    activeQueries = dna.activeSerperQueries.slice(0, queryCap);
     const queueThreshold = Math.ceil(dailyDropQuota * 1.5);
     const queuedCount = await countQueuedDiscoveryLeads(supabaseServer, userId);
     const skipSerperScrape = queuedCount >= queueThreshold;

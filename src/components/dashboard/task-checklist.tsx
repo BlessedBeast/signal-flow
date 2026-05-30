@@ -18,7 +18,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  formatFrameworkSlugLabel as toFrameworkLabel,
+  resolveFrameworkSlugsFromPersonaContext,
+} from "@/lib/bip/persona-frameworks";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
+import { getAuthHeaders } from "@/lib/api-auth";
+import { useSignalFlow } from "@/lib/signalflow-store";
 import { cn } from "@/lib/utils";
 
 type DailyExecutionTask = {
@@ -29,7 +35,46 @@ type DailyExecutionTask = {
   action_type: string | null;
   task_status: string;
   created_at: string;
+  is_fallback?: boolean;
 };
+
+function resolveTaskChecklistFrameworkSlugs(
+  context: Record<string, unknown> | null
+): string[] {
+  return resolveFrameworkSlugsFromPersonaContext(context).slice(0, 2);
+}
+
+function buildFallbackTasksFromFrameworks(frameworkSlugs: string[]): DailyExecutionTask[] {
+  if (frameworkSlugs.length === 0) return [];
+  const now = new Date().toISOString();
+
+  return frameworkSlugs.map((slug, index) => {
+    const frameworkName = toFrameworkLabel(slug);
+    const targetCommunity = slug.includes("x")
+      ? "X distribution thread"
+      : slug.includes("reddit")
+        ? "Reddit intent thread"
+        : "Build-in-public channel";
+    return {
+      id: `fallback-${slug}-${index}`,
+      target_community: targetCommunity,
+      instruction_to_user: `Draft your initial 4-3-2-1 Content Matrix post using the ${frameworkName} framework.`,
+      ai_generated_draft: `Today's structural milestone is framework activation.
+
+Framework: ${frameworkName}
+Action:
+1) Publish one founder-proof post tied to a concrete customer friction signal.
+2) Add one evidence asset (screenshot, chart, or clip) directly on the target platform.
+3) End with one clear CTA that maps to your current onboarding persona context.
+
+Attach these files directly to your post on the target platform. Do not upload them here.`,
+      action_type: "plug",
+      task_status: "pending",
+      created_at: now,
+      is_fallback: true,
+    };
+  });
+}
 
 function TaskCard({
   task,
@@ -137,6 +182,7 @@ export function TaskChecklist() {
   const [tasks, setTasks] = useState<DailyExecutionTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const { profile, setProfile } = useSignalFlow();
 
   const fetchPendingTasks = useCallback(async () => {
     setLoading(true);
@@ -162,18 +208,35 @@ export function TaskChecklist() {
 
       if (error) {
         console.error("[TaskChecklist] fetch:", error.message);
-        setTasks([]);
+        setTasks(
+          buildFallbackTasksFromFrameworks(
+            resolveTaskChecklistFrameworkSlugs(profile.persona_context)
+          )
+        );
         return;
       }
 
-      setTasks((data ?? []) as DailyExecutionTask[]);
+      const pendingTasks = (data ?? []) as DailyExecutionTask[];
+      if (pendingTasks.length === 0) {
+        setTasks(
+          buildFallbackTasksFromFrameworks(
+            resolveTaskChecklistFrameworkSlugs(profile.persona_context)
+          )
+        );
+        return;
+      }
+      setTasks(pendingTasks);
     } catch (err) {
       console.error("[TaskChecklist] fetch:", err);
-      setTasks([]);
+      setTasks(
+        buildFallbackTasksFromFrameworks(
+          resolveTaskChecklistFrameworkSlugs(profile.persona_context)
+        )
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [profile.persona_context]);
 
   useEffect(() => {
     void fetchPendingTasks();
@@ -195,6 +258,12 @@ export function TaskChecklist() {
           return;
         }
 
+        if (tasks.find((task) => task.id === taskId)?.is_fallback) {
+          setTasks((prev) => prev.filter((task) => task.id !== taskId));
+          toast.success("Milestone task checked off");
+          return;
+        }
+
         const { error } = await supabase
           .from("daily_execution_tasks")
           .update({
@@ -210,14 +279,40 @@ export function TaskChecklist() {
         }
 
         setTasks((prev) => prev.filter((t) => t.id !== taskId));
-        toast.success("Task marked complete");
+        const headers = await getAuthHeaders();
+        const streakRes = await fetch("/api/user/streak", {
+          method: "POST",
+          headers,
+        });
+        const streakBody = (await streakRes.json()) as {
+          ok?: boolean;
+          data?: {
+            current_streak: number;
+            longest_streak: number;
+            last_action_at: string | null;
+          };
+          error?: string;
+        };
+
+        if (streakRes.ok && streakBody.ok && streakBody.data) {
+          setProfile({
+            current_streak: streakBody.data.current_streak,
+            longest_streak: streakBody.data.longest_streak,
+            last_action_at: streakBody.data.last_action_at,
+          });
+          toast.success(
+            `Task marked complete · ${streakBody.data.current_streak} day streak`
+          );
+        } else {
+          toast.success("Task marked complete");
+        }
       } catch {
         toast.error("Could not mark task complete");
       } finally {
         setCompletingId(null);
       }
     },
-    [completingId]
+    [completingId, setProfile, tasks]
   );
 
   return (
@@ -227,6 +322,22 @@ export function TaskChecklist() {
         <h2 className="text-sm font-semibold text-foreground">
           Today&apos;s marketing tasks
         </h2>
+      </div>
+      <div className="glass-soft flex items-center justify-between rounded-xl px-3 py-2">
+        <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          Daily retention streak
+        </p>
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className="border-primary/30 bg-primary/10 font-mono text-xs text-foreground"
+          >
+            {profile.current_streak} day{profile.current_streak === 1 ? "" : "s"}
+          </Badge>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            best {profile.longest_streak}
+          </span>
+        </div>
       </div>
 
       {loading ? (
@@ -240,8 +351,7 @@ export function TaskChecklist() {
       ) : tasks.length === 0 ? (
         <div className="glass-soft rounded-2xl px-5 py-10 text-center">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Your marketing queue is clear for today. Live Reflection Engine
-            recalculating at dawn.
+            Your marketing queue is clear for today. Live Reflection Engine recalculating at dawn.
           </p>
         </div>
       ) : (

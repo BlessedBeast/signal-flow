@@ -1,86 +1,25 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { ArrowRight, Loader2, Zap } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-import {
-  EyebrowReveal,
-  FadeUp,
-} from "@/components/marketing/fade-up";
-import { HeroStatStrip } from "@/components/marketing/hero-stats";
 import { ForensicAuditModal } from "@/components/marketing/forensic-audit-modal";
 import { HookScrollIntercept } from "@/components/marketing/hook-scroll-intercept";
-import { AEOSection } from "@/components/sections/aeo-section";
-import { Arsenal } from "@/components/sections/arsenal";
-import { CompoundingCurve } from "@/components/sections/compounding-curve";
-import { FinalCTA } from "@/components/sections/final-cta";
-import { ProductProof } from "@/components/sections/product-proof";
-import { SocialProof } from "@/components/sections/social-proof";
-import { Trust } from "@/components/sections/trust";
-
-function HomeSectionDivider() {
-  return (
-    <div className="mx-auto max-w-5xl px-6 py-2">
-      <div className="border-t border-white/[0.06]" />
-    </div>
-  );
-}
-import { UrlAuditHeroForm } from "@/components/marketing/url-audit-hero-form";
+import { ComparisonSection } from "@/components/marketing/comparison-section";
+import { DailyOsSection } from "@/components/marketing/daily-os-section";
+import { FrameworksPlaybooksSection } from "@/components/marketing/frameworks-playbooks-section";
+import { VoiceVaultSection } from "@/components/marketing/voice-vault-section";
+import { HeroStatStrip } from "@/components/marketing/hero-stats";
+import { HomepageClosingCta } from "@/components/marketing/homepage/homepage-closing-cta";
+import { HomepageSection } from "@/components/marketing/homepage/homepage-section";
+import { HowItWorksOverview } from "@/components/marketing/homepage/how-it-works-overview";
+import { MarketingHero } from "@/components/marketing/homepage/marketing-hero";
+import { MarketingNav } from "@/components/marketing/homepage/marketing-nav";
+import { PlatformIntelligenceCard } from "@/components/marketing/homepage/platform-intelligence-card";
+import { PricingTeaser } from "@/components/marketing/homepage/pricing-teaser";
+import { ProductProofPills } from "@/components/marketing/homepage/product-proof-pills";
 import { isHookAuditUsed } from "@/lib/onboard/hook-types";
-import { Button } from "@/components/ui/button";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
-import { cn } from "@/lib/utils";
-
-function MonoEyebrow({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <EyebrowReveal
-      className={cn(
-        "font-mono text-[10px] uppercase tracking-widest text-muted-foreground",
-        className
-      )}
-    >
-      {children}
-    </EyebrowReveal>
-  );
-}
-
-function AuthCTAs({
-  hasSession,
-  size = "lg",
-}: {
-  hasSession: boolean;
-  size?: "default" | "sm" | "lg";
-}) {
-  if (hasSession) {
-    return (
-      <Button asChild size={size} className="gap-2">
-        <Link href="/stream/dashboard">
-          Enter Workspace {"->"}
-          <ArrowRight className="size-4 shrink-0" aria-hidden />
-        </Link>
-      </Button>
-    );
-  }
-
-  return (
-    <>
-      <Button asChild size={size}>
-        <Link href="/signup">Get started</Link>
-      </Button>
-      <Button asChild variant="outline" size={size} className="glass-soft">
-        <Link href="/login">Sign in</Link>
-      </Button>
-    </>
-  );
-}
 
 export default function HomePage() {
   const [checkingSession, setCheckingSession] = useState(true);
@@ -169,12 +108,7 @@ export default function HomePage() {
     onScrollDepth();
 
     return () => window.removeEventListener("scroll", onScroll);
-  }, [
-    hasSession,
-    checkingSession,
-    hookInterceptOpen,
-    auditModalOpen,
-  ]);
+  }, [hasSession, checkingSession, hookInterceptOpen, auditModalOpen]);
 
   function handleHookInterceptSubmit(url: string) {
     setHookInterceptOpen(false);
@@ -194,121 +128,59 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header
-        className={cn(
-          "glass-strong sticky top-0 z-50 w-full border-b transition-[border-color] duration-300",
-          navScrolled ? "border-border/60" : "border-transparent"
-        )}
-      >
-        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-foreground"
-          >
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary shadow-sm">
-              <Zap size={16} className="text-primary-foreground" aria-hidden />
-            </span>
-            SignalFlow
-          </Link>
-          <div className="flex items-center gap-3">
-            {hasSession ? (
-              <Button asChild size="sm">
-                <Link href="/stream/dashboard">Enter Workspace</Link>
-              </Button>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Sign in
-                </Link>
-                <Button asChild size="sm">
-                  <Link href="/signup">Get started</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </nav>
-      </header>
+      <MarketingNav hasSession={hasSession} scrolled={navScrolled} />
 
-      <main>
-        <section className="relative overflow-hidden border-b border-border/40 px-6 py-20 sm:py-28">
-          <div
-            className="hero-dot-grid pointer-events-none absolute inset-0 z-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_72%)]"
-            aria-hidden
+      <div className="mx-auto max-w-7xl px-4 md:px-8">
+        <main className="w-full">
+          <MarketingHero
+            hasSession={hasSession}
+            onAuditUrl={openForensicAudit}
           />
-          <div
-            className="pointer-events-none absolute inset-0 z-0 grid-bg opacity-20 [mask-image:radial-gradient(ellipse_at_center,black,transparent_72%)]"
-            aria-hidden
-          />
-          <div className="relative z-10 mx-auto max-w-4xl text-center">
-            <MonoEyebrow>Growth ecosystem · Built for vibe coders</MonoEyebrow>
-            <FadeUp>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-balance text-foreground sm:text-5xl lg:text-6xl">
-                You shipped the product. Now comes the{" "}
-                <span className="text-primary">hard part</span>.
-              </h1>
-            </FadeUp>
-            <FadeUp delay={0.08}>
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Stop guessing what to post. We hunt high-intent leads, intercept
-                viral threads, and write your founder timeline automatically while
-                you write code.
-              </p>
-            </FadeUp>
-            <FadeUp delay={0.16}>
-              <div className="mt-10">
-                {hasSession ? (
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <AuthCTAs hasSession={hasSession} />
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <UrlAuditHeroForm onSubmitUrl={openForensicAudit} />
-                    <p className="text-center text-xs text-muted-foreground">
-                      Already have an account?{" "}
-                      <Link
-                        href="/login"
-                        className="font-medium text-primary hover:underline"
-                      >
-                        Sign in
-                      </Link>
-                    </p>
-                  </div>
-                )}
-              </div>
-            </FadeUp>
-            <motion.p
-              className="mt-4 text-center text-xs text-muted-foreground"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.5, ease: "easeOut" }}
-            >
-              Joined by 340+ indie founders this month · Rated 4.9 on Product Hunt
-              ⭐
-            </motion.p>
+
+          <HomepageSection className="!py-8 md:!py-12">
             <HeroStatStrip />
-          </div>
-        </section>
+          </HomepageSection>
 
-        <ProductProof />
-        <SocialProof />
+          <HomepageSection>
+            <ProductProofPills />
+          </HomepageSection>
 
-        <HomeSectionDivider />
-        <CompoundingCurve />
+          <HomepageSection id="how-it-works-preview">
+            <HowItWorksOverview />
+          </HomepageSection>
 
-        <HomeSectionDivider />
-        <AEOSection />
+          <HomepageSection>
+            <VoiceVaultSection embedded />
+          </HomepageSection>
 
-        <HomeSectionDivider />
-        <Arsenal />
+          <HomepageSection>
+            <FrameworksPlaybooksSection embedded />
+          </HomepageSection>
 
-        <HomeSectionDivider />
-        <Trust />
+          <HomepageSection>
+            <DailyOsSection embedded />
+          </HomepageSection>
 
-        <FinalCTA hasSession={hasSession} />
-      </main>
+          <HomepageSection>
+            <PlatformIntelligenceCard />
+          </HomepageSection>
+
+          <HomepageSection>
+            <ComparisonSection embedded />
+          </HomepageSection>
+
+          <HomepageSection>
+            <PricingTeaser />
+          </HomepageSection>
+
+          <HomepageSection className="pb-20 md:pb-28">
+            <HomepageClosingCta
+              hasSession={hasSession}
+              onAuditUrl={openForensicAudit}
+            />
+          </HomepageSection>
+        </main>
+      </div>
 
       <HookScrollIntercept
         open={hookInterceptOpen}

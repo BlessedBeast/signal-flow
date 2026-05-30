@@ -90,19 +90,80 @@ type PipelineDashboardProps = {
   showHeader?: boolean;
 };
 
+type ContentMode = "plug" | "hype" | "deflect";
+
+const CONTENT_MODES: { id: ContentMode; label: string }[] = [
+  { id: "plug", label: "Plug" },
+  { id: "hype", label: "Hype" },
+  { id: "deflect", label: "Deflect" },
+];
+
+function getTimingIntelBadge(createdAt: string): {
+  label: string;
+  className: string;
+} {
+  const hoursAgo = Math.max(
+    0,
+    (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60)
+  );
+
+  if (hoursAgo < 2) {
+    return {
+      label: "[ ⚡ ULTRA FRESH ]",
+      className:
+        "border-primary/35 bg-primary/15 text-primary shadow-[0_0_16px_rgba(22,163,74,0.25)]",
+    };
+  }
+  if (hoursAgo <= 12) {
+    return {
+      label: "[ 🔥 HOT SIGNAL ]",
+      className:
+        "border-amber-500/35 bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    };
+  }
+  return {
+    label: "[ 💤 WARM OPPORTUNITY ]",
+    className: "border-border/60 bg-muted/35 text-muted-foreground",
+  };
+}
+
 export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps) {
   const { leads, addLead, updateLead } = useSignalFlow();
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null);
   const [ingestOpen, setIngestOpen] = useState(false);
+  const [contentMode, setContentMode] = useState<ContentMode>("plug");
   const [rawContent, setRawContent] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [ingestPlatform, setIngestPlatform] = useState<Platform>("reddit");
 
   const metrics = useMemo(() => computeMetrics(leads), [leads]);
 
-  const ledgerBuckets = useMemo(
-    () => groupLeadsByReleaseDay(leads),
+  const sortedLeads = useMemo(
+    () =>
+      [...leads].sort((a, b) => {
+        if (b.intent_score !== a.intent_score) {
+          return b.intent_score - a.intent_score;
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }),
     [leads]
+  );
+
+  const modeFilteredLeads = useMemo(() => {
+    if (contentMode === "plug") {
+      return sortedLeads.filter((lead) => lead.intent_score >= 70);
+    }
+    if (contentMode === "hype") {
+      return sortedLeads.filter(
+        (lead) => lead.intent_score >= 40 && lead.intent_score < 70
+      );
+    }
+    return sortedLeads.filter((lead) => lead.intent_score < 40);
+  }, [contentMode, sortedLeads]);
+
+  const ledgerBuckets = useMemo(
+    () => groupLeadsByReleaseDay(modeFilteredLeads),
+    [modeFilteredLeads]
   );
 
   const streamLeadCount = useMemo(
@@ -127,6 +188,7 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
       intent_score: score,
       status: "new",
       ai_draft_content: null,
+      media_directives: [],
       conversation_history: [
         { role: "prospect", content, at: now },
       ],
@@ -312,6 +374,23 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
                 {streamLeadCount} in stream · grouped by daily drop
               </p>
             </div>
+            <div className="inline-flex rounded-xl border border-border/60 bg-muted/20 p-1">
+              {CONTENT_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setContentMode(mode.id)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors",
+                    contentMode === mode.id
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
 
             {streamLeadCount === 0 ? (
               <EmptyState
@@ -396,6 +475,26 @@ export function PipelineDashboard({ showHeader = true }: PipelineDashboardProps)
                                     tier={getIntentTier(lead.intent_score)}
                                   />
                                   <StatusBadge status={lead.status} />
+                                  {(() => {
+                                    const timing = getTimingIntelBadge(lead.created_at);
+                                    return (
+                                      <Badge
+                                        variant="outline"
+                                        className={cn(
+                                          "font-mono text-[10px] uppercase tracking-wider",
+                                          timing.className
+                                        )}
+                                      >
+                                        {timing.label}
+                                      </Badge>
+                                    );
+                                  })()}
+                                  <Badge
+                                    variant="outline"
+                                    className="border-border/60 bg-background font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+                                  >
+                                    mode: {contentMode}
+                                  </Badge>
                                   <span className="ml-auto text-xs text-muted-foreground">
                                     {formatDistanceToNow(
                                       new Date(lead.released_at),

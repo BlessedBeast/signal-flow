@@ -1,0 +1,1087 @@
+/* Homepage marketing layout — class names from landing HTML style block */
+
+.marketing-homepage-root {
+  --color-text-secondary: var(--text-secondary);
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.marketing-homepage-root .section-header {
+  margin: 0 auto;
+  max-width: 56rem;
+  padding: 0 1.5rem;
+  text-align: center;
+}
+
+.marketing-homepage-root .section-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.marketing-homepage-root .section-header h2 {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  margin: 0 0 1rem;
+}
+
+.marketing-homepage-root .section-header p {
+  margin: 0 auto;
+  max-width: 700px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+.marketing-homepage-root .section-spacer {
+  height: 3rem;
+}
+
+.marketing-homepage-root .playbooks-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 2rem auto 0;
+  padding: 0 1.5rem;
+}
+
+.marketing-homepage-root .compare-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 2%);
+  backdrop-filter: blur(12px);
+}
+
+.marketing-homepage-root .compare-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.marketing-homepage-root .compare-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.marketing-homepage-root .compare-card-platform {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid oklch(1 0 0 / 10%);
+  background: oklch(1 0 0 / 4%);
+  color: var(--color-text-secondary);
+}
+
+.marketing-homepage-root .compare-card-sequence {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--primary);
+}
+
+.marketing-homepage-root .compare-card-description {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  margin: 0;
+  flex: 1;
+}
+
+.marketing-homepage-root .compare-card-usecase {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  margin: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid oklch(1 0 0 / 6%);
+}
+
+.marketing-homepage-root .section-subline {
+  margin: 2rem auto 4rem;
+  padding: 0 1.5rem;
+  max-width: 42rem;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+/* Comparison matrix — Every other tool vs SignalFlow */
+
+.marketing-homepage-root .two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 0 auto 4rem;
+  padding: 0 1.5rem;
+}
+
+.marketing-homepage-root .two-col .compare-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 1.25rem;
+}
+
+.marketing-homepage-root .compare-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  margin: 0 0 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid oklch(1 0 0 / 8%);
+}
+
+.marketing-homepage-root .compare-title.bad {
+  color: oklch(0.65 0.2 25);
+}
+
+.marketing-homepage-root .compare-title.good {
+  color: var(--primary);
+}
+
+.marketing-homepage-root .compare-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.marketing-homepage-root .compare-list li {
+  display: flex;
+  align-items: center;
+  min-height: 4.5rem;
+  padding: 0.75rem 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--foreground);
+  border-bottom: 1px solid oklch(1 0 0 / 6%);
+}
+
+.marketing-homepage-root .compare-list li:last-child {
+  border-bottom: none;
+}
+
+.marketing-homepage-root .two-col .compare-card.bad {
+  border-color: oklch(0.65 0.2 25 / 20%);
+  background: oklch(0.65 0.2 25 / 4%);
+}
+
+.marketing-homepage-root .two-col .compare-card.good {
+  border-color: oklch(0.55 0.14 160 / 25%);
+  background: oklch(0.55 0.14 160 / 6%);
+}
+
+@media (min-width: 768px) {
+  .marketing-homepage-root .two-col {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+}
+
+@media (min-width: 768px) {
+  .marketing-homepage-root .playbooks-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.marketing-homepage-root .output-card {
+  margin: 0 auto;
+  max-width: 42rem;
+  padding: 0 1.5rem;
+  border-radius: 1rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 2%);
+  backdrop-filter: blur(12px);
+}
+
+.marketing-homepage-root .output-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid oklch(1 0 0 / 8%);
+}
+
+.marketing-homepage-root .output-platform {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.marketing-homepage-root .platform-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.marketing-homepage-root .output-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid oklch(0.55 0.14 160 / 25%);
+  background: oklch(0.55 0.14 160 / 10%);
+  color: var(--primary);
+}
+
+.marketing-homepage-root .output-text {
+  padding: 1rem 1rem 1.25rem;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
+@media (max-width: 640px) {
+  .marketing-homepage-root .output-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Section 8: Daily OS — two-column tasks + streak */
+
+.marketing-homepage-root .daily-os-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  max-width: 72rem;
+  margin: 2rem auto 4rem;
+  padding: 0 1.5rem;
+}
+
+.marketing-homepage-root .daily-os-column .output-card {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+.marketing-homepage-root .daily-os-card-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--foreground);
+}
+
+.marketing-homepage-root .task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.marketing-homepage-root .task-row {
+  padding: 0.875rem 0;
+  border-bottom: 1px solid oklch(1 0 0 / 6%);
+}
+
+.marketing-homepage-root .task-row:last-child {
+  border-bottom: none;
+}
+
+.marketing-homepage-root .task-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.marketing-homepage-root .task-row-priority {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.marketing-homepage-root .task-row-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.marketing-homepage-root .task-row-context {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.marketing-homepage-root .streak-subhead {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  margin: 0 0 0.75rem;
+}
+
+.marketing-homepage-root .streak-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0 0 1.25rem;
+}
+
+.marketing-homepage-root .streak-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.marketing-homepage-root .streak-stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 4%);
+}
+
+.marketing-homepage-root .streak-stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  margin-bottom: 0.5rem;
+}
+
+.marketing-homepage-root .streak-stat-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .marketing-homepage-root .daily-os-columns {
+    grid-template-columns: 1.15fr 0.85fr;
+    align-items: stretch;
+  }
+}
+
+/* Page 3: Pricing */
+
+.marketing-pricing-page .pricing-header {
+  margin: 0 auto 2.5rem;
+  max-width: 42rem;
+  padding: 0 0 0;
+  text-align: center;
+}
+
+.marketing-homepage-root .pricing-header {
+  margin: 0 auto 2.5rem;
+  max-width: 42rem;
+  padding: 3rem 1.5rem 0;
+  text-align: center;
+}
+
+.marketing-homepage-root .pricing-header h1 {
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+  margin: 0 0 1rem;
+}
+
+.marketing-homepage-root .pricing-header .pricing-subline {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.marketing-homepage-root .pricing-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.marketing-homepage-root .pricing-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.marketing-homepage-root .pricing-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 2%);
+  backdrop-filter: blur(12px);
+}
+
+.marketing-homepage-root .pricing-card-featured {
+  border-color: oklch(0.55 0.14 160 / 45%);
+  background: oklch(0.55 0.14 160 / 8%);
+  box-shadow: 0 0 0 1px oklch(0.55 0.14 160 / 20%),
+    0 24px 48px -24px oklch(0.55 0.14 160 / 25%);
+}
+
+.marketing-homepage-root .pricing-tier-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0 0 0.5rem;
+}
+
+.marketing-homepage-root .pricing-price {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  margin: 0 0 0.25rem;
+}
+
+.marketing-homepage-root .pricing-price-alt {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.75rem;
+}
+
+.marketing-homepage-root .pricing-tagline {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  margin: 0 0 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid oklch(1 0 0 / 8%);
+}
+
+.marketing-homepage-root .pricing-features {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.marketing-homepage-root .pricing-features li {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--foreground);
+  padding-left: 1rem;
+  position: relative;
+}
+
+.marketing-homepage-root .pricing-features li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.marketing-homepage-root .pricing-cta {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid oklch(1 0 0 / 12%);
+  background: oklch(1 0 0 / 6%);
+  color: var(--foreground);
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.marketing-homepage-root .pricing-cta:hover {
+  opacity: 0.9;
+}
+
+.marketing-homepage-root .pricing-cta-primary {
+  border-color: oklch(0.55 0.14 160 / 35%);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.marketing-homepage-root .pricing-gate {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid oklch(1 0 0 / 6%);
+  background: oklch(1 0 0 / 3%);
+}
+
+.marketing-pricing-page .pricing-grid.pricing-page-tiers,
+.marketing-pricing-page .pricing-compare-section,
+.marketing-pricing-page .pricing-faq-section {
+  max-width: 72rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.marketing-pricing-page .pricing-grid.pricing-page-tiers {
+  padding: 0;
+  margin-bottom: 2.5rem;
+}
+
+.marketing-pricing-page .pricing-compare-section {
+  margin-bottom: 3rem;
+  padding-top: 1rem;
+}
+
+.marketing-homepage-root .pricing-table-wrap {
+  max-width: 72rem;
+  margin: 3rem auto;
+  padding: 0 1.5rem;
+  overflow-x: auto;
+}
+
+.marketing-pricing-page .pricing-table-wrap {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.marketing-pricing-page .pricing-table-scroll {
+  -webkit-overflow-scrolling: touch;
+  border-radius: 1rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 2%);
+}
+
+.marketing-pricing-page .pricing-table {
+  margin: 0;
+}
+
+.marketing-homepage-root .pricing-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.marketing-homepage-root .pricing-table th,
+.marketing-homepage-root .pricing-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid oklch(1 0 0 / 8%);
+  color: var(--foreground);
+}
+
+.marketing-homepage-root .pricing-table th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  background: oklch(1 0 0 / 4%);
+}
+
+.marketing-homepage-root .pricing-table td:not(:first-child) {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.marketing-homepage-root .pricing-table-gate-row td {
+  padding: 1rem;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  background: oklch(1 0 0 / 3%);
+  border-bottom: 1px solid oklch(1 0 0 / 8%);
+}
+
+.marketing-homepage-root .pricing-faq {
+  max-width: 42rem;
+  margin: 0 auto 3rem;
+  padding: 0 1.5rem;
+}
+
+.marketing-pricing-page .pricing-faq-section {
+  margin-bottom: 3rem;
+}
+
+.marketing-pricing-page .pricing-faq {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0;
+}
+
+@media (min-width: 768px) {
+  .marketing-pricing-page .pricing-faq {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem 2rem;
+  }
+}
+
+.marketing-homepage-root .pricing-faq-item {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid oklch(1 0 0 / 8%);
+}
+
+.marketing-pricing-page .pricing-faq-item {
+  padding: 1.25rem 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 2%);
+  border-bottom: 1px solid oklch(1 0 0 / 8%);
+}
+
+.marketing-homepage-root .pricing-faq-item:last-child {
+  border-bottom: none;
+}
+
+.marketing-homepage-root .pricing-faq-q {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0 0 0.5rem;
+}
+
+.marketing-homepage-root .pricing-faq-a {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.marketing-homepage-root .pricing-closing {
+  max-width: 42rem;
+  margin: 0 auto 4rem;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  border-radius: 1rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 2%);
+}
+
+.marketing-pricing-page .pricing-closing {
+  max-width: 42rem;
+  margin: 0 auto 2rem;
+  padding: 2.5rem 1.75rem;
+}
+
+.marketing-homepage-root .pricing-closing h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  margin: 0 0 0.75rem;
+}
+
+.marketing-homepage-root .pricing-closing p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0 0 1.5rem;
+}
+
+.marketing-homepage-root .pricing-closing-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.marketing-homepage-root .pricing-closing-link {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.marketing-homepage-root .pricing-closing-link:hover {
+  text-decoration: underline;
+}
+
+@media (min-width: 900px) {
+  .marketing-homepage-root .pricing-grid {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: stretch;
+  }
+}
+
+.marketing-homepage-root .pricing-grid.pricing-grid-teaser {
+  margin-bottom: 0;
+}
+
+.marketing-homepage-root .pricing-grid.pricing-grid-teaser .pricing-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.marketing-homepage-root .pricing-grid.pricing-grid-teaser .pricing-cta {
+  margin-top: auto;
+}
+
+/* How It Works — deep-dive system page */
+
+.marketing-how-it-works .hiw-page-header {
+  margin: 0 auto 3.5rem;
+  max-width: 44rem;
+  text-align: center;
+}
+
+.marketing-how-it-works .hiw-page-header h1 {
+  font-size: clamp(2rem, 5vw, 2.85rem);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+  margin: 0.75rem 0 1.25rem;
+}
+
+.marketing-how-it-works .hiw-page-lead {
+  margin: 0 auto;
+  max-width: 40rem;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--muted-foreground);
+}
+
+.marketing-how-it-works .hiw-steps {
+  list-style: none;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.marketing-how-it-works .hiw-step-panel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.75rem;
+  padding: 1.75rem;
+  border-radius: 1rem;
+  border: 1px solid oklch(1 0 0 / 10%);
+  background: oklch(1 0 0 / 3%);
+}
+
+@media (min-width: 900px) {
+  .marketing-how-it-works .hiw-step-panel {
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5rem;
+    padding: 2rem 2.25rem;
+    align-items: start;
+  }
+
+  .marketing-how-it-works .hiw-step-panel--reverse .hiw-step-content {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .marketing-how-it-works .hiw-step-panel--reverse .hiw-step-visual {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+
+.marketing-how-it-works .hiw-step-num {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--primary);
+  margin-bottom: 0.75rem;
+}
+
+.marketing-how-it-works .hiw-step-title {
+  font-size: clamp(1.125rem, 2.5vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--foreground);
+  margin: 0 0 0.35rem;
+  line-height: 1.25;
+}
+
+.marketing-how-it-works .hiw-step-subtitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin: 0 0 1rem;
+}
+
+.marketing-how-it-works .hiw-step-body {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--muted-foreground);
+  margin: 0 0 1.25rem;
+}
+
+.marketing-how-it-works .hiw-step-bullets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.marketing-how-it-works .hiw-step-bullets li {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--foreground);
+  padding-left: 1.1rem;
+  position: relative;
+}
+
+.marketing-how-it-works .hiw-step-bullets li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.marketing-how-it-works .hiw-visual-card {
+  max-width: none;
+  margin: 0;
+  height: 100%;
+}
+
+.marketing-how-it-works .hiw-visual-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.marketing-how-it-works .hiw-visual-dl {
+  margin: 0;
+  padding: 0;
+}
+
+.marketing-how-it-works .hiw-visual-row {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid oklch(1 0 0 / 6%);
+}
+
+.marketing-how-it-works .hiw-visual-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.marketing-how-it-works .hiw-visual-row dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.35rem;
+}
+
+.marketing-how-it-works .hiw-visual-row dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--foreground);
+}
+
+.marketing-how-it-works .hiw-bonus-panel {
+  margin-bottom: 3rem;
+  padding: 2rem 1.75rem;
+  border-radius: 1rem;
+  border: 1px solid oklch(0.55 0.14 160 / 35%);
+  background: oklch(0.55 0.14 160 / 6%);
+}
+
+@media (min-width: 768px) {
+  .marketing-how-it-works .hiw-bonus-panel {
+    padding: 2.25rem 2.5rem;
+  }
+}
+
+.marketing-how-it-works .hiw-bonus-header {
+  margin-bottom: 1.75rem;
+  max-width: 40rem;
+}
+
+.marketing-how-it-works .hiw-reply-modes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .marketing-how-it-works .hiw-reply-modes {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+.marketing-how-it-works .hiw-reply-mode-card {
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid oklch(1 0 0 / 10%);
+  background: oklch(0 0 0 / 20%);
+}
+
+.marketing-how-it-works .hiw-reply-mode-card h3 {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin: 0 0 0.65rem;
+}
+
+.marketing-how-it-works .hiw-reply-mode-desc {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--foreground);
+  margin: 0 0 0.85rem;
+}
+
+.marketing-how-it-works .hiw-reply-mode-directive {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+  margin: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid oklch(1 0 0 / 8%);
+}
+
+.marketing-how-it-works .hiw-faq-section {
+  margin-bottom: 3rem;
+}
+
+.marketing-how-it-works .hiw-faq-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--foreground);
+  margin: 0 0 1.5rem;
+}
+
+.marketing-how-it-works .hiw-faq-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .marketing-how-it-works .hiw-faq-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem 2rem;
+  }
+}
+
+.marketing-how-it-works .hiw-faq-item {
+  padding: 1.25rem 1.35rem;
+  border-radius: 0.75rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 2%);
+}
+
+.marketing-how-it-works .hiw-faq-q {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--foreground);
+  margin: 0 0 0.5rem;
+}
+
+.marketing-how-it-works .hiw-faq-a {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.marketing-how-it-works .hiw-closing {
+  max-width: 42rem;
+  margin: 0 auto 1rem;
+  padding: 2.5rem 1.75rem;
+  text-align: center;
+  border-radius: 1rem;
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: oklch(1 0 0 / 2%);
+}
+
+.marketing-how-it-works .hiw-closing h2 {
+  font-size: clamp(1.35rem, 3vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--foreground);
+  margin: 0 0 1rem;
+}
+
+.marketing-how-it-works .hiw-closing p {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--muted-foreground);
+  margin: 0 0 1.5rem;
+}
+
+.marketing-how-it-works .hiw-closing-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}

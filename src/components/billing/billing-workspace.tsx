@@ -30,10 +30,154 @@ function MonoEyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
+const LIMIT_ROWS = [
+  {
+    label: "Daily lead drops",
+    key: "dailyDropQuota" as const,
+    format: (n: number) => `${n} / day`,
+  },
+  {
+    label: "Lead tracking queries",
+    key: "activeSerperQueryLimit" as const,
+    format: (n: number) => String(n),
+  },
+  {
+    label: "Framework sequences",
+    key: "activeFrameworkSequenceLimit" as const,
+    format: (n: number) => String(n),
+  },
+  {
+    label: "Daily AI reflection tasks",
+    key: "dailyReflectionTaskLimit" as const,
+    format: (n: number) => String(n),
+  },
+  {
+    label: "Monthly lead ledger cap",
+    key: "monthlyLeadCap" as const,
+    format: (n: number) => `${n} / mo`,
+  },
+] as const;
+
+function TierLimitsComparison({ activeTierId }: { activeTierId: SubscriptionTierId }) {
+  return (
+    <section className="glass-strong overflow-hidden rounded-2xl border border-border/60">
+      <div className="border-b border-border/60 px-6 py-5 sm:px-8">
+        <MonoEyebrow>Plan limits at a glance</MonoEyebrow>
+        <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+          Free · Bootstrapper · Founder
+        </h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          One Product DNA vault on every tier — limits scale with daily execution
+          velocity:{" "}
+          <span className="font-medium text-foreground">1 / 10 / 50</span> leads
+          per day and{" "}
+          <span className="font-medium text-foreground">1 / 3 / 10</span> tracking
+          queries.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-border/60 bg-muted/20">
+              <th className="px-6 py-3 font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground sm:px-8">
+                Limit
+              </th>
+              {BILLING_TIERS.map((tier) => (
+                <th
+                  key={tier.id}
+                  className={cn(
+                    "px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-widest",
+                    tier.id === activeTierId
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {tier.name}
+                  {tier.id === activeTierId ? " · current" : ""}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {LIMIT_ROWS.map((row) => (
+              <tr key={row.key} className="border-b border-border/40 last:border-0">
+                <td className="px-6 py-3.5 text-xs text-muted-foreground sm:px-8">
+                  {row.label}
+                </td>
+                {BILLING_TIERS.map((tier) => (
+                  <td
+                    key={`${row.key}-${tier.id}`}
+                    className={cn(
+                      "px-4 py-3.5 font-mono text-xs font-medium",
+                      tier.id === activeTierId
+                        ? "bg-primary/5 text-foreground"
+                        : "text-foreground/90"
+                    )}
+                  >
+                    {row.format(tier[row.key])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            <tr className="border-t border-border/60">
+              <td className="px-6 py-3.5 text-xs text-muted-foreground sm:px-8">
+                1-click reply pipeline
+              </td>
+              {BILLING_TIERS.map((tier) => (
+                <td
+                  key={`reply-${tier.id}`}
+                  className={cn(
+                    "px-4 py-3.5 text-xs",
+                    tier.id === activeTierId && "bg-primary/5"
+                  )}
+                >
+                  {tier.oneClickReplyUnlocked ? (
+                    <span className="inline-flex items-center gap-1 text-primary">
+                      <Check className="size-3.5" aria-hidden />
+                      Unlocked
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Locked</span>
+                  )}
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <td className="px-6 py-3.5 text-xs text-muted-foreground sm:px-8">
+                5 AM automated lead fetch
+              </td>
+              {BILLING_TIERS.map((tier) => (
+                <td
+                  key={`auto-${tier.id}`}
+                  className={cn(
+                    "px-4 py-3.5 text-xs",
+                    tier.id === activeTierId && "bg-primary/5"
+                  )}
+                >
+                  {tier.automatedLeadFetch ? (
+                    <span className="inline-flex items-center gap-1 text-primary">
+                      <Check className="size-3.5" aria-hidden />
+                      Included
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Manual only</span>
+                  )}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function QuotaMeter({ billing }: { billing: UserBillingContext }) {
   const used = billing.leadsUsed;
   const cap = billing.monthlyLeadCap;
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
+  const tierDef = getBillingTier(billing.tier);
 
   return (
     <section className="glass-strong rounded-2xl border border-border/60 p-6 sm:p-8">
@@ -48,8 +192,9 @@ function QuotaMeter({ billing }: { billing: UserBillingContext }) {
             Leads
           </p>
           <p className="mt-1 font-mono text-[11px] uppercase tracking-tight text-muted-foreground">
-            {billing.cycleLabel} · {billing.tierName} · {billing.dailyDropQuota}{" "}
-            leads/day · {billing.dailyReflectionTaskLimit} AI tasks/day
+            {billing.cycleLabel} · {billing.tierName} ({billing.tier}) ·{" "}
+            {billing.dailyDropQuota} leads/day · {billing.activeSerperQueryLimit}{" "}
+            queries · {billing.dailyReflectionTaskLimit} AI tasks/day
           </p>
         </div>
         <p className="font-mono text-2xl font-bold tracking-tight text-foreground">
@@ -75,13 +220,15 @@ function QuotaMeter({ billing }: { billing: UserBillingContext }) {
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        Quota is tied to your{" "}
-        <span className="font-medium text-foreground">
-          {billing.tierName}
-        </span>{" "}
-        plan: up to {billing.dailyDropQuota} leads released per daily drop and{" "}
+        You are on{" "}
+        <span className="font-medium text-foreground">{tierDef.name}</span> (
+        {tierDef.priceLabel}): up to {billing.dailyDropQuota} leads released per
+        daily drop, {billing.activeSerperQueryLimit} active Serper quer
+        {billing.activeSerperQueryLimit === 1 ? "y" : "ies"}, and{" "}
         {billing.dailyReflectionTaskLimit} reflection tasks per cron cycle.
-        Upgrade before you hit the cap to keep the Hunter running.
+        {!billing.oneClickReplyUnlocked
+          ? " Upgrade to Bootstrapper to unlock the 1-click reply pipeline."
+          : null}
       </p>
     </section>
   );
@@ -125,6 +272,9 @@ function PricingTierCard({
       <p className="mt-1 text-3xl font-bold tracking-tight text-foreground">
         {tier.priceLabel}
       </p>
+      {tier.trialPriceLabel ? (
+        <p className="mt-1 text-xs text-muted-foreground">{tier.trialPriceLabel}</p>
+      ) : null}
 
       <ul className="mt-6 flex-1 space-y-3">
         {tier.features.map((feature) => (
@@ -235,7 +385,7 @@ export function BillingWorkspace() {
     );
   }
 
-  const activeTierId = billing?.tier ?? "hobbyist";
+  const activeTierId = billing?.tier ?? "free";
 
   return (
     <div className="space-y-8">
@@ -247,10 +397,10 @@ export function BillingWorkspace() {
           Execution tiers
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Pick the tier that matches your distribution velocity. Hobbyist proves
-          the loop with one lead and one task per day. Indie Builder scales
-          mining and unlocks BIP. Growth Studio runs programmatic SEO labs and
-          the inbound replier at full burner.
+          Pick the tier that matches your distribution velocity. Free proves the
+          loop with one lead and one query per day. Bootstrapper unlocks manual
+          mining and the reply pipeline. Founder runs 5 AM auto-fetch, streak
+          analytics, and Growth Labs.
         </p>
         <Link
           href="/profile"
@@ -262,6 +412,8 @@ export function BillingWorkspace() {
 
       {billing ? <QuotaMeter billing={billing} /> : null}
 
+      <TierLimitsComparison activeTierId={activeTierId} />
+
       <section className="space-y-6">
         <div className="max-w-2xl">
           <MonoEyebrow>Value stack</MonoEyebrow>
@@ -270,8 +422,8 @@ export function BillingWorkspace() {
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Start free with proof-of-fit limits. Upgrade when daily execution
-            outgrows a single lead and a single task. Growth Studio is for teams
-            running GEO Seeds, Side-Cars, and 1-Click Inbound at scale.
+            outgrows a single lead and a single query. Founder unlocks automated
+            mining, BIP Storyteller, and Growth Labs at full scale.
           </p>
         </div>
 
@@ -326,11 +478,11 @@ export function BillingWorkspace() {
 
       <p className="flex items-center gap-2 text-center text-xs text-muted-foreground sm:text-left">
         <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
-        Daily drop quota resolves from{" "}
+        Limits resolve from your profile{" "}
         <code className="rounded bg-muted/40 px-1 py-0.5 font-mono text-[10px]">
-          resolveDailyDropQuota(tier)
+          subscription_tier
         </code>{" "}
-        — same engine as the Hunter circuit breaker.
+        — same engine as the Hunter circuit breaker and API gates.
       </p>
     </div>
   );

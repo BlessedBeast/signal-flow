@@ -16,21 +16,26 @@ import { cn } from "@/lib/utils";
 export default function SignupPage() {
   const router = useRouter();
   const [fromMicroAudit, setFromMicroAudit] = useState(false);
-  const [isHobbyistSignup, setIsHobbyistSignup] = useState(false);
+  const [isFreeSignup, setIsFreeSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [scannedUrl, setScannedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const fromAudit = params.get("from") === "micro-audit";
-    const hobbyist = params.get("tier") === "hobbyist";
+    const freeTier = params.get("tier") === "free";
+    const urlParam = params.get("url")?.trim();
     setFromMicroAudit(fromAudit);
-    setIsHobbyistSignup(hobbyist);
-    if (hobbyist) {
-      saveSignupTierPreference("hobbyist");
+    setIsFreeSignup(freeTier);
+    if (urlParam) {
+      setScannedUrl(urlParam);
+    }
+    if (freeTier) {
+      saveSignupTierPreference("free");
     }
   }, []);
 
@@ -78,15 +83,28 @@ export default function SignupPage() {
 
     try {
       const supabase = createBrowserSupabase();
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
       });
 
       if (error) throw error;
 
+      if (data.user?.id) {
+        const { error: profileError } = await supabase.from("profiles").upsert(
+          { id: data.user.id, subscription_tier: "free" },
+          { onConflict: "id" }
+        );
+        if (profileError) {
+          console.warn("[signup] profile upsert:", profileError.message);
+        }
+      }
+
       toast.success("Account created! Check your email to verify.");
-      router.push("/onboarding");
+      const onboardingHref = scannedUrl
+        ? `/onboarding?url=${encodeURIComponent(scannedUrl)}`
+        : "/onboarding";
+      router.push(onboardingHref);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Registration failed";
@@ -124,12 +142,12 @@ export default function SignupPage() {
       <div className="rounded-2xl glass p-8 max-w-md w-full shadow-2xl">
         <div className="space-y-1">
           <h1 className="font-semibold tracking-tight text-foreground">
-            {isHobbyistSignup
-              ? "Setting up your permanent Free Hobbyist account"
+            {isFreeSignup
+              ? "Setting up your permanent Free account"
               : "Create your account"}
           </h1>
           <p className="text-xs text-muted-foreground">
-            {isHobbyistSignup
+            {isFreeSignup
               ? "No credit card required. Your micro-audit DNA is saved — one high-intent lead per day to start."
               : fromMicroAudit
                 ? "Your micro-audit is saved — finish signup to unlock your Live Distribution Cockpit."
