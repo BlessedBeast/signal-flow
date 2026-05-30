@@ -8,7 +8,7 @@ import "@/styles/homepage-marketing.css";
 export const metadata: Metadata = {
   title: "Pricing · SignalFlow",
   description:
-    "One price. One system. Bootstrapper, Founder, and Agency plans for indie distribution.",
+    "Free Sandbox, Bootstrapper, and Founder plans for indie distribution.",
 };
 
 export default function PricingPage() {

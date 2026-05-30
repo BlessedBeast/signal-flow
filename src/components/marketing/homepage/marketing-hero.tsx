@@ -13,6 +13,14 @@ type MarketingHeroProps = {
   onAuditUrl: (url: string) => void;
 };
 
+const FOUNDER_PROOF_TAGS = [
+  "bootstrappers",
+  "vibe coders",
+  "indie hackers",
+  "solo founders",
+  "micro-SaaS builders",
+] as const;
+
 function MonoEyebrow({ children }: { children: React.ReactNode }) {
   return (
     <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -35,19 +43,21 @@ export function MarketingHero({ hasSession, onAuditUrl }: MarketingHeroProps) {
 
       <div className="relative z-10 mx-auto max-w-4xl text-center">
         <FadeUp>
-          <MonoEyebrow>Growth ecosystem · Built for vibe coders</MonoEyebrow>
+          <MonoEyebrow>Distribution OS for indie founders</MonoEyebrow>
         </FadeUp>
         <FadeUp delay={0.06}>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-balance text-foreground sm:text-5xl lg:text-6xl">
-            You shipped the product. Now comes the{" "}
-            <span className="text-primary">hard part</span>.
+            You shipped the product.
+            <br />
+            Now comes the hard part.
           </h1>
         </FadeUp>
         <FadeUp delay={0.1}>
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Stop guessing what to post. We hunt high-intent leads, intercept viral
-            threads, and write your founder timeline automatically while you write
-            code.
+            Paste your URL. We build your founder voice profile, hunt high-intent
+            leads on Reddit, LinkedIn, and X, and write every reply using your
+            actual story — your MRR, your failures, your wins. Not generic{" "}
+            <span className="text-primary">AI</span>.
           </p>
         </FadeUp>
         <FadeUp delay={0.14}>
@@ -59,6 +69,10 @@ export function MarketingHero({ hasSession, onAuditUrl }: MarketingHeroProps) {
             ) : (
               <div className="mx-auto max-w-xl space-y-4">
                 <UrlAuditHeroForm onSubmitUrl={onAuditUrl} />
+                <p className="text-center text-xs text-muted-foreground">
+                  ✓ No credit card · ✓ 7-day free trial · ✓ 60-second setup · ✓
+                  Platform-compliant by default
+                </p>
                 <p className="text-center text-xs text-muted-foreground">
                   Already have an account?{" "}
                   <Link
@@ -72,14 +86,24 @@ export function MarketingHero({ hasSession, onAuditUrl }: MarketingHeroProps) {
             )}
           </div>
         </FadeUp>
-        <motion.p
-          className={cn("mt-4 text-center text-xs text-muted-foreground")}
+        <motion.div
+          className={cn("mt-8 text-center")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: 0.45, ease: "easeOut" }}
         >
-          Joined by 340+ indie founders this month · Rated 4.9 on Product Hunt ⭐
-        </motion.p>
+          <MonoEyebrow>FOUNDERS ALREADY DISTRIBUTING</MonoEyebrow>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {FOUNDER_PROOF_TAGS.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] text-foreground"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </section>
   );

@@ -6,63 +6,41 @@ import {
 
 export { PRICING_PAGE_HEADLINE, PRICING_PAGE_SUBLINE, PRICING_TIERS };
 
-export const PRICING_TIER_GATES: Record<string, string> = {
-  bootstrapper:
-    "Tier 1 founders check manually. Tier 2 founders wake up to leads that found them.",
+export const PRICING_TIER_GATES: Partial<Record<string, string>> = {
   founder:
-    "Streak tracking exists because the data is clear: founders who show up 21 consecutive days get their first inbound lead within that window. Tier 2 tracks the only metric that matters.",
+    "Streak tracking exists because the data is clear: founders who show up 21 consecutive days get their first inbound lead within that window. Founder tier tracks the only metric that matters.",
 };
 
-export const PRICING_TABLE_GATE =
-  "Running one framework is a post. Running three in parallel is a distribution system. The difference is compounding.";
+export type PricingFeatureRow = {
+  feature: string;
+  free: string;
+  bootstrapper: string;
+  founder: string;
+};
 
-export const PRICING_FEATURE_ROWS = [
-  { feature: "Product vaults", bootstrapper: "1", founder: "3", agency: "Unlimited" },
+export const PRICING_FEATURE_ROWS: readonly PricingFeatureRow[] = [
+  { feature: "PRODUCT VAULTS", free: "1", bootstrapper: "1", founder: "1" },
+  { feature: "LEAD TRACKING QUERIES", free: "1", bootstrapper: "3", founder: "10" },
+  { feature: "LEADS PER DAY", free: "1", bootstrapper: "10", founder: "50" },
   {
-    feature: "Lead tracking queries",
-    bootstrapper: "3",
-    founder: "10",
-    agency: "Unlimited",
+    feature: "LEAD FETCH STYLE",
+    free: "Manual",
+    bootstrapper: "Manual",
+    founder: "5 AM Automated Delivery",
   },
-  {
-    feature: "Leads per day",
-    bootstrapper: "10",
-    founder: "50",
-    agency: "Unlimited",
-  },
-  { feature: "Lead fetch", bootstrapper: "Manual", founder: "5 AM auto", agency: "Hourly" },
-  {
-    feature: "Framework sequences",
-    bootstrapper: "1",
-    founder: "3",
-    agency: "Unlimited",
-    gateAfter: true,
-  },
-  { feature: "Daily OS checklist", bootstrapper: "—", founder: "✓", agency: "✓" },
-  { feature: "Streak tracking", bootstrapper: "—", founder: "✓", agency: "✓" },
-  { feature: "Execution analytics", bootstrapper: "—", founder: "✓", agency: "✓" },
-  { feature: "Custom frameworks", bootstrapper: "—", founder: "—", agency: "✓" },
-  { feature: "URL analyzer", bootstrapper: "✓", founder: "✓", agency: "✓" },
-  { feature: "Voice synthesis", bootstrapper: "✓", founder: "✓", agency: "✓" },
-  {
-    feature: "Platform intelligence",
-    bootstrapper: "✓",
-    founder: "✓",
-    agency: "✓",
-  },
-  { feature: "Reply pipeline", bootstrapper: "✓", founder: "✓", agency: "✓" },
-  {
-    feature: "Pre-publish validator",
-    bootstrapper: "✓",
-    founder: "✓",
-    agency: "✓",
-  },
-] as const;
+  { feature: "PARALLEL CAMPAIGNS", free: "1", bootstrapper: "1", founder: "3" },
+  { feature: "1-CLICK REPLY PIPELINE", free: "—", bootstrapper: "✓", founder: "✓" },
+  { feature: "PRE-PUBLISH VALIDATOR", free: "—", bootstrapper: "✓", founder: "✓" },
+  { feature: "DAILY OS CHECKLIST", free: "—", bootstrapper: "—", founder: "✓" },
+  { feature: "STREAK TRACKING", free: "—", bootstrapper: "—", founder: "✓" },
+  { feature: "URL ANALYZER", free: "✓", bootstrapper: "✓", founder: "✓" },
+  { feature: "VOICE SYNTHESIS", free: "✓", bootstrapper: "✓", founder: "✓" },
+];
 
 export const PRICING_FAQ_ITEMS = [
   {
     q: "Is there a free trial?",
-    a: "Yes. Tier 1 is $9.90 for your first month. Full access, no credit card limit. If you don't find one lead worth replying to in 30 days, cancel in two clicks.",
+    a: "Yes. Bootstrapper is $9.90 for your first month. Free Sandbox is $0 forever with proof-of-fit limits. If you don't find one lead worth replying to in 30 days, cancel in two clicks.",
   },
   {
     q: "Can I upgrade or downgrade anytime?",
@@ -91,6 +69,6 @@ export const PRICING_CLOSING = {
   body: "Paste your product URL. We'll run your distribution audit for free — no account required. If the gaps we find don't surprise you, you don't need SignalFlow. If they do, you know where to start.",
   primaryCta: "Scan my URL — free, 30 seconds",
   primaryHref: "/",
-  secondaryCta: "Start 7-day Founder trial — $9.90 first month",
-  secondaryHref: "/signup",
+  secondaryCta: "Start validating free →",
+  secondaryHref: "/signup?tier=free",
 } as const;

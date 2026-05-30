@@ -12,34 +12,10 @@ function useInViewOnce(threshold = 0.3) {
   return { ref, inView };
 }
 
-function StatFourHours() {
-  const { ref, inView } = useInViewOnce();
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    if (!inView) return;
-    let frame = 0;
-    const duration = 800;
-    const start = performance.now();
-
-    const tick = (now: number) => {
-      const progress = Math.min(1, (now - start) / duration);
-      setValue(Math.round(progress * 4));
-      if (progress < 1) {
-        frame = requestAnimationFrame(tick);
-      }
-    };
-
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [inView]);
-
+function StatTwoMin() {
   return (
-    <div
-      ref={ref}
-      className="text-[32px] font-bold leading-none tracking-tight text-foreground"
-    >
-      {value}h
+    <div className="text-[32px] font-bold leading-none tracking-tight text-foreground">
+      2 min
     </div>
   );
 }
@@ -146,13 +122,25 @@ function StatZeroPulse() {
 }
 
 const STATS = [
-  { id: "hours", label: "Saved per day", node: <StatFourHours /> },
-  { id: "radar", label: "Lead radar, always on", node: <StatTwentyFourSeven /> },
-  { id: "bans", label: "Bans. Ever.", node: <StatZeroPulse /> },
+  {
+    id: "mins",
+    label: "to build your voice profile from your real story",
+    node: <StatTwoMin />,
+  },
+  {
+    id: "radar",
+    label: "automated lead monitoring across Reddit, X, LinkedIn",
+    node: <StatTwentyFourSeven />,
+  },
   {
     id: "click",
-    label: "Traffic wave hijack",
+    label: "platform-compliant replies that pass the human test",
     node: <StatTypewriter text="1-click" charDelay={70} />,
+  },
+  {
+    id: "zero",
+    label: "posts that sound like every other AI tool",
+    node: <StatZeroPulse />,
   },
 ] as const;
 

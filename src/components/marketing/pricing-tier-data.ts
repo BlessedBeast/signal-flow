@@ -1,10 +1,11 @@
-export type PricingTierId = "bootstrapper" | "founder" | "agency";
+export type PricingTierId = "free" | "bootstrapper" | "founder";
 
 /** Marketing + future enforcement contract — Founder daily lead cap. */
 export const FOUNDER_DAILY_LEAD_LIMIT = 50;
 
 export type PricingTier = {
   id: PricingTierId;
+  headerTag: string;
   title: string;
   price: string;
   priceAlt?: string;
@@ -17,62 +18,58 @@ export type PricingTier = {
 
 export const PRICING_TIERS: readonly PricingTier[] = [
   {
-    id: "bootstrapper",
-    title: "Bootstrapper",
-    price: "$19/month",
-    priceAlt: "(or $9.90 first month)",
-    tagline: "For founders validating their first distribution channel.",
+    id: "free",
+    headerTag: "1 LEAD / DAY",
+    title: "Free Sandbox",
+    price: "$0/mo",
+    tagline: "Start with proof-of-fit limits to validate distribution channels.",
     features: [
-      "1 product vault",
-      "URL analyzer + strategy briefing",
-      "Full intake + voice profile synthesis",
-      "3 active lead tracking queries",
-      "10 leads per day (manual fetch — you click, it runs)",
-      "All 6 framework templates",
-      "1-click reply pipeline (plug / hype / deflect)",
-      "Platform intelligence (Reddit + LinkedIn + X)",
-      "Pre-publish validator",
-      "1 active framework sequence",
+      "1 product vault configuration",
+      "1 qualified lead released per day (manual fetch)",
+      "1 active lead tracking query",
+      "All 6 core framework templates",
+      "❌ 1-Click Reply Pipeline locked (requires manual copy-paste)",
+      "❌ Pre-publish validation locked",
     ],
     cta: "Start validating free →",
+    ctaHref: "/signup?tier=free",
+  },
+  {
+    id: "bootstrapper",
+    headerTag: "10 LEADS / DAY",
+    title: "Bootstrapper",
+    price: "$19/mo",
+    tagline: "or $9.90 first month trial",
+    features: [
+      "1 product vault configuration",
+      "10 high-intent leads per day (manual fetch)",
+      "3 active lead tracking queries",
+      "✓ 1-Click Reply Pipeline unlocked (plug / hype / deflect)",
+      "✓ Pre-publish validator",
+      "✓ Platform intelligence (Reddit + LinkedIn + X)",
+    ],
+    cta: "Get started with Bootstrapper →",
     ctaHref: "/signup",
   },
   {
     id: "founder",
+    headerTag: "50 LEADS / DAY",
     title: "Founder",
-    price: "$79/month",
-    tagline: "For active indie hackers running a real distribution system.",
+    price: "$49/mo",
+    tagline: "For active builders running parallel distribution sequences.",
     features: [
-      "3 product vaults",
-      "Automated daily lead fetch (5 AM, runs while you sleep)",
-      `${FOUNDER_DAILY_LEAD_LIMIT} leads per day`,
+      "1 product vault configuration",
+      "50 high-intent leads per day",
       "10 active lead tracking queries",
-      "Sequential framework tracking (multi-step, multi-platform)",
-      "Streak system + execution analytics",
-      "3 active framework sequences (run parallel campaigns)",
-      "Daily OS (morning task checklist, auto-generated)",
-      "Priority context weaving (your vault referenced in every output)",
+      "✓ Automated daily lead fetch (5 AM wake-up delivery)",
+      "✓ Daily OS (morning task checklist, auto-generated)",
+      "✓ 3 active framework sequences running in parallel",
+      "✓ Streak tracking engine + execution analytics",
+      "✓ Priority context weaving",
     ],
     cta: "Get started with Founder →",
     ctaHref: "/signup",
     featured: true,
-  },
-  {
-    id: "agency",
-    title: "Agency / Studio",
-    price: "$249/month",
-    tagline: "For studios and serial builders running multiple products.",
-    features: [
-      "Unlimited product vaults",
-      "Unlimited lead tracking queries",
-      "Unlimited leads per day",
-      "Hourly lead monitoring (not just 5 AM — continuous)",
-      "Custom framework upload (build your own playbook sequences)",
-      "Multi-product dashboard view",
-      "White-label output (remove SignalFlow branding from exports)",
-    ],
-    cta: "Deploy Agency Engine →",
-    ctaHref: "/signup",
   },
 ] as const;
 

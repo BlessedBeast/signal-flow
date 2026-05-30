@@ -46,7 +46,7 @@ export function UrlAuditHeroForm({
         <Input
           type="url"
           inputMode="url"
-          placeholder="Enter your website URL..."
+          placeholder="yourstartup.com"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           className="h-12 glass-strong border-border/60 pl-10 text-base shadow-sm"
@@ -58,7 +58,7 @@ export function UrlAuditHeroForm({
         size="lg"
         className="h-12 shrink-0 gap-2 px-6 font-semibold shadow-md"
       >
-        Analyze My Distribution Leaks
+        Analyze my distribution →
       </Button>
     </form>
   );

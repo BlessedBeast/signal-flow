@@ -64,7 +64,7 @@ function TierLimitsComparison({ activeTierId }: { activeTierId: SubscriptionTier
       <div className="border-b border-border/60 px-6 py-5 sm:px-8">
         <MonoEyebrow>Plan limits at a glance</MonoEyebrow>
         <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
-          Free · Bootstrapper · Founder
+          Free Sandbox · Bootstrapper · Founder
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           One Product DNA vault on every tier — limits scale with daily execution
@@ -177,7 +177,6 @@ function QuotaMeter({ billing }: { billing: UserBillingContext }) {
   const used = billing.leadsUsed;
   const cap = billing.monthlyLeadCap;
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
-  const tierDef = getBillingTier(billing.tier);
 
   return (
     <section className="glass-strong rounded-2xl border border-border/60 p-6 sm:p-8">
@@ -220,15 +219,10 @@ function QuotaMeter({ billing }: { billing: UserBillingContext }) {
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        You are on{" "}
-        <span className="font-medium text-foreground">{tierDef.name}</span> (
-        {tierDef.priceLabel}): up to {billing.dailyDropQuota} leads released per
-        daily drop, {billing.activeSerperQueryLimit} active Serper quer
-        {billing.activeSerperQueryLimit === 1 ? "y" : "ies"}, and{" "}
+        Quota is tied to your {billing.tierName} plan: up to{" "}
+        {billing.dailyDropQuota} leads released per daily drop and{" "}
         {billing.dailyReflectionTaskLimit} reflection tasks per cron cycle.
-        {!billing.oneClickReplyUnlocked
-          ? " Upgrade to Bootstrapper to unlock the 1-click reply pipeline."
-          : null}
+        Upgrade before you hit the cap to keep the Hunter running.
       </p>
     </section>
   );
@@ -261,7 +255,7 @@ function PricingTierCard({
     >
       {isHighlighted ? (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-primary/50 bg-primary/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-primary">
-          Most popular
+          MOST POPULAR
         </span>
       ) : null}
 
@@ -416,14 +410,15 @@ export function BillingWorkspace() {
 
       <section className="space-y-6">
         <div className="max-w-2xl">
-          <MonoEyebrow>Value stack</MonoEyebrow>
+          <MonoEyebrow>VALUE STACK</MonoEyebrow>
           <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
             More leads, more tasks, more modules — same DNA vault.
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Start free with proof-of-fit limits. Upgrade when daily execution
-            outgrows a single lead and a single query. Founder unlocks automated
-            mining, BIP Storyteller, and Growth Labs at full scale.
+            outgrows a single lead and a single task. Founder tier unlocks full
+            automation, parallel campaigns, and advanced execution monitoring
+            tools at scale.
           </p>
         </div>
 

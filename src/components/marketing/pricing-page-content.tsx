@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Fragment } from "react";
 
 import {
   PRICING_CLOSING,
@@ -7,10 +6,12 @@ import {
   PRICING_FEATURE_ROWS,
   PRICING_PAGE_HEADLINE,
   PRICING_PAGE_SUBLINE,
-  PRICING_TABLE_GATE,
   PRICING_TIER_GATES,
   PRICING_TIERS,
 } from "@/components/marketing/pricing-page-data";
+
+const TABLE_CELL =
+  "border-b border-r border-border/60 py-4 px-4 last:border-r-0 align-middle";
 
 export function PricingPageContent() {
   return (
@@ -25,9 +26,19 @@ export function PricingPageContent() {
           <div key={tier.id} className="pricing-column">
             <article
               className={
-                tier.featured ? "pricing-card pricing-card-featured" : "pricing-card"
+                tier.featured
+                  ? "pricing-card pricing-card-featured relative"
+                  : "pricing-card relative"
               }
             >
+              {tier.featured ? (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-primary/50 bg-primary/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-primary">
+                  MOST POPULAR
+                </span>
+              ) : null}
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {tier.headerTag}
+              </p>
               <h2 className="pricing-tier-title">{tier.title}</h2>
               <p className="pricing-price">{tier.price}</p>
               {tier.priceAlt ? (
@@ -57,31 +68,36 @@ export function PricingPageContent() {
 
       <section className="pricing-compare-section">
         <div className="pricing-table-wrap">
-          <div className="pricing-table-scroll overflow-x-auto w-full block">
-            <table className="pricing-table">
+          <div className="pricing-table-scroll overflow-x-auto w-full block border border-border/60">
+            <table className="pricing-table w-full border-collapse">
               <thead>
                 <tr>
-                  <th scope="col">Feature</th>
-                  <th scope="col">Bootstrapper $19</th>
-                  <th scope="col">Founder $79</th>
-                  <th scope="col">Agency $249</th>
+                  <th scope="col" className={TABLE_CELL}>
+                    FEATURE
+                  </th>
+                  <th scope="col" className={TABLE_CELL}>
+                    FREE SANDBOX
+                  </th>
+                  <th scope="col" className={TABLE_CELL}>
+                    BOOTSTRAPPER $19
+                  </th>
+                  <th scope="col" className={`${TABLE_CELL} last:border-r-0`}>
+                    FOUNDER $49
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {PRICING_FEATURE_ROWS.map((row) => (
-                  <Fragment key={row.feature}>
-                    <tr>
-                      <th scope="row">{row.feature}</th>
-                      <td>{row.bootstrapper}</td>
-                      <td>{row.founder}</td>
-                      <td>{row.agency}</td>
-                    </tr>
-                    {"gateAfter" in row && row.gateAfter ? (
-                      <tr className="pricing-table-gate-row">
-                        <td colSpan={4}>{PRICING_TABLE_GATE}</td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
+                  <tr key={row.feature}>
+                    <th scope="row" className={TABLE_CELL}>
+                      {row.feature}
+                    </th>
+                    <td className={TABLE_CELL}>{row.free}</td>
+                    <td className={TABLE_CELL}>{row.bootstrapper}</td>
+                    <td className={`${TABLE_CELL} last:border-r-0`}>
+                      {row.founder}
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
